@@ -1,14 +1,11 @@
 extern crate reqwest;
 
-use scraper::{Html, Selector};
-use db::{create_table};
-use uuid::Uuid;
-use aws_sdk_dynamodb::{
-    types::{AttributeValue},
-    Client
-};
-use anyhow::{Result, Ok};
+use anyhow::{Ok, Result};
+use aws_sdk_dynamodb::{types::AttributeValue, Client};
 use chrono::NaiveDate;
+use db::create_table;
+use scraper::{Html, Selector};
+use uuid::Uuid;
 
 pub mod db;
 
@@ -30,7 +27,7 @@ pub async fn collect_data(db_client: &Client, pages: &[String]) {
 
     let requests = pages.iter().map(|page| {
         let p = page.clone();
-        tokio::spawn(async move { request_page(p).await })  
+        tokio::spawn(async move { request_page(p).await })
     });
 
     let results = futures::future::join_all(requests).await;
@@ -67,14 +64,32 @@ fn parse_page_to_rows(page_html: String) -> Vec<TableRowData> {
     let document = Html::parse_document(&page_html);
     let table_selector = Selector::parse("table").unwrap();
     let tables = document.select(&table_selector).collect::<Vec<_>>();
-    
+
     let header_table = tables.get(0).unwrap();
     let header_selector = Selector::parse("tbody > tr > td > b").unwrap();
-    let header: String = header_table.select(&header_selector).next().unwrap().text().collect::<Vec<_>>().into_iter().collect();
-    let date = header.split(char::is_whitespace).last().unwrap().to_owned().split(".").filter(|&str| {
-        !str.is_empty()
-    }).collect::<Vec<_>>().join("-");
-    let city = header.split(" - ").collect::<Vec<_>>().first().unwrap().to_string();
+    let header: String = header_table
+        .select(&header_selector)
+        .next()
+        .unwrap()
+        .text()
+        .collect::<Vec<_>>()
+        .into_iter()
+        .collect();
+    let date = header
+        .split(' ')
+        .last()
+        .unwrap()
+        .to_owned()
+        .split('.')
+        .filter(|&str| !str.is_empty())
+        .collect::<Vec<_>>()
+        .join("-");
+    let city = header
+        .split(" - ")
+        .collect::<Vec<_>>()
+        .first()
+        .unwrap()
+        .to_string();
 
     let table = tables.get(1).unwrap();
     let tr_selector = Selector::parse("tr").unwrap();
@@ -86,31 +101,62 @@ fn parse_page_to_rows(page_html: String) -> Vec<TableRowData> {
     let heading_row = rows.get(0).unwrap();
     let heading_td = heading_row.select(&td_selector);
 
-    let street_index = heading_td.clone().position(|cell| {
-        let title: String = cell.text().collect::<Vec<_>>().into_iter().collect();
+    let street_index = heading_td
+        .clone()
+        .position(|cell| {
+            let title: String = cell.text().collect::<Vec<_>>().into_iter().collect();
 
-        title == "Улице"
-    }).unwrap();
-    let time_index = heading_td.clone().position(|cell| {
-        let title: String = cell.text().collect::<Vec<_>>().into_iter().collect();
+            title == "Улице"
+        })
+        .unwrap();
+    let time_index = heading_td
+        .clone()
+        .position(|cell| {
+            let title: String = cell.text().collect::<Vec<_>>().into_iter().collect();
 
-        title == "Време"
-    }).unwrap();
-    let region_index = heading_td.clone().position(|cell| {
-        let title: String = cell.text().collect::<Vec<_>>().into_iter().collect();
+            title == "Време"
+        })
+        .unwrap();
+    let region_index = heading_td
+        .clone()
+        .position(|cell| {
+            let title: String = cell.text().collect::<Vec<_>>().into_iter().collect();
 
-        title == "Општина"
-    }).unwrap();
+            title == "Општина"
+        })
+        .unwrap();
 
     for tr_element in &rows[1..] {
         let td_elements = tr_element.select(&td_selector).collect::<Vec<_>>();
-        let region: String = td_elements.get(region_index).unwrap().text().collect::<Vec<_>>().into_iter().collect();
-        let time: String = td_elements.get(time_index).unwrap().text().collect::<Vec<_>>().into_iter().collect();
-        let street: String = td_elements.get(street_index).unwrap().text().collect::<Vec<_>>().into_iter().collect();
+        let region: String = td_elements
+            .get(region_index)
+            .unwrap()
+            .text()
+            .collect::<Vec<_>>()
+            .into_iter()
+            .collect();
+        let time: String = td_elements
+            .get(time_index)
+            .unwrap()
+            .text()
+            .collect::<Vec<_>>()
+            .into_iter()
+            .collect();
+        let street: String = td_elements
+            .get(street_index)
+            .unwrap()
+            .text()
+            .collect::<Vec<_>>()
+            .into_iter()
+            .collect();
 
-        table_rows.push(
-            TableRowData { region, time, street, city: city.clone(), date: format_date(date.clone()) }
-        )           
+        table_rows.push(TableRowData {
+            region,
+            time,
+            street,
+            city: city.clone(),
+            date: format_date(date.clone()),
+        })
     }
 
     table_rows
@@ -125,7 +171,6 @@ async fn add_electricity_failure_item(client: &Client, item: &TableRowData) -> R
     let date_av = AttributeValue::S(item.date.to_owned());
 
     // let res = find_electricity_failure_item(client, &item).await?;
-
 
     // if let Some(q) = res {
     //     println!("{}", q);
@@ -153,7 +198,8 @@ async fn find_electricity_failure_item(client: &Client, item: &TableRowData) -> 
     let time_av = AttributeValue::S(item.time.to_owned());
     let date_av = AttributeValue::S(item.date.to_owned());
 
-    let results = client.scan()
+    let results = client
+        .scan()
         .table_name("electricity_failures")
         .filter_expression("#city = :city and #region = :region and #time = :time and #date = :date")
         .expression_attribute_names("#city", "city")
@@ -171,11 +217,55 @@ async fn find_electricity_failure_item(client: &Client, item: &TableRowData) -> 
         let item = items.get(0);
 
         if let Some(attributes) = item {
-            println!("{}", attributes.get("city").cloned().unwrap().as_s().unwrap().to_owned());
-            println!("{}", attributes.get("date").cloned().unwrap().as_s().unwrap().to_owned());
-            println!("{}", attributes.get("time").cloned().unwrap().as_s().unwrap().to_owned());
-            println!("{}", attributes.get("region").cloned().unwrap().as_s().unwrap().to_owned());
-            return Ok(Some(attributes.get("id").cloned().unwrap().as_s().unwrap().to_owned()));
+            println!(
+                "{}",
+                attributes
+                    .get("city")
+                    .cloned()
+                    .unwrap()
+                    .as_s()
+                    .unwrap()
+                    .to_owned()
+            );
+            println!(
+                "{}",
+                attributes
+                    .get("date")
+                    .cloned()
+                    .unwrap()
+                    .as_s()
+                    .unwrap()
+                    .to_owned()
+            );
+            println!(
+                "{}",
+                attributes
+                    .get("time")
+                    .cloned()
+                    .unwrap()
+                    .as_s()
+                    .unwrap()
+                    .to_owned()
+            );
+            println!(
+                "{}",
+                attributes
+                    .get("region")
+                    .cloned()
+                    .unwrap()
+                    .as_s()
+                    .unwrap()
+                    .to_owned()
+            );
+            return Ok(Some(
+                attributes
+                    .get("id")
+                    .cloned()
+                    .unwrap()
+                    .as_s()
+                    .unwrap()
+                    .to_owned(),
+            ));
         }
     }
 

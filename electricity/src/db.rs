@@ -1,20 +1,21 @@
-use anyhow::{Result, Ok};
-use std::env;
+use anyhow::{Ok, Result};
 use aws_sdk_dynamodb::{
-    types::{
-        AttributeDefinition, ProvisionedThroughput, KeySchemaElement,
-        KeyType, ScalarAttributeType
-    },
-    config::{Region, Config},
+    config::{Config, Region},
+    types::{AttributeDefinition, KeySchemaElement, KeyType, ProvisionedThroughput, ScalarAttributeType},
     Client,
 };
+use std::env;
 
 async fn make_config() -> Config {
     let database_url = env::var("DATABASE_URL").unwrap_or("http://localhost:8000".to_owned());
     let profile_name = env::var("AWS_PROFILE").unwrap();
     let region = env::var("AWS_REGION").unwrap();
 
-    let config = aws_config::from_env().profile_name(&profile_name).region(Region::new(region)).load().await;
+    let config = aws_config::from_env()
+        .profile_name(&profile_name)
+        .region(Region::new(region))
+        .load()
+        .await;
 
     aws_sdk_dynamodb::config::Builder::from(&config)
         .endpoint_url(&database_url)
@@ -39,11 +40,7 @@ pub async fn check_table_exists(client: &Client, name: &str) -> Result<bool> {
     Ok(exists)
 }
 
-pub async fn create_table(
-    client: &Client,
-    table: &str,
-    key: &str,
-) -> Result<()> {
+pub async fn create_table(client: &Client, table: &str, key: &str) -> Result<()> {
     let table_exists = check_table_exists(client, table).await?;
 
     if table_exists {

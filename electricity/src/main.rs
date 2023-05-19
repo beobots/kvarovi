@@ -1,5 +1,5 @@
 use dotenvy::dotenv;
-use electricity::db::{init_client};
+use electricity::db::init_client;
 
 #[tokio::main]
 async fn main() {
@@ -14,7 +14,7 @@ async fn main() {
         String::from("https://elektrodistribucija.rs/planirana-iskljucenja-srbija/NoviSad_Dan_0_Iskljucenja.htm"),
         String::from("https://elektrodistribucija.rs/planirana-iskljucenja-srbija/NoviSad_Dan_1_Iskljucenja.htm"),
         String::from("https://elektrodistribucija.rs/planirana-iskljucenja-srbija/NoviSad_Dan_2_Iskljucenja.htm"),
-        String::from("https://elektrodistribucija.rs/planirana-iskljucenja-srbija/NoviSad_Dan_3_Iskljucenja.htm")
+        String::from("https://elektrodistribucija.rs/planirana-iskljucenja-srbija/NoviSad_Dan_3_Iskljucenja.htm"),
     ];
     let _ = electricity::collect_data(&db_client, &pages).await;
 }
