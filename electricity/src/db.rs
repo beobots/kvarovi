@@ -1,48 +1,55 @@
+use anyhow::{Result, Ok};
+use std::env;
 use aws_sdk_dynamodb::{
     types::{
         AttributeDefinition, ProvisionedThroughput, KeySchemaElement,
         KeyType, ScalarAttributeType
     },
     config::{Region, Config},
-    operation::{create_table::CreateTableOutput},
-    Client, Error,
+    Client,
 };
 
-pub async fn make_config() -> Config {
-    let config = aws_config::from_env().profile_name("localstack").region(Region::new("us-west-2")).load().await;
+async fn make_config() -> Config {
+    let database_url = env::var("DATABASE_URL").unwrap_or("http://localhost:8000".to_owned());
+    let profile_name = env::var("AWS_PROFILE").unwrap();
+    let region = env::var("AWS_REGION").unwrap();
+
+    let config = aws_config::from_env().profile_name(&profile_name).region(Region::new(region)).load().await;
 
     aws_sdk_dynamodb::config::Builder::from(&config)
-        .endpoint_url(
-            "http://localhost:8000",
-        )
+        .endpoint_url(&database_url)
         .build()
 }
 
-pub struct Database {
-    client: Option<Client>
+pub async fn init_client() -> Client {
+    let config = make_config().await;
+    Client::from_conf(config)
 }
 
-impl Database {
-    pub async fn get_client(&mut self) -> &Client {
-        if self.client.is_none() {
-            let config = make_config().await;
-            let client = Client::from_conf(config);
-            self.client = Some(client);
+pub async fn check_table_exists(client: &Client, name: &str) -> Result<bool> {
+    let tables = client.list_tables().send().await?;
+    let exists = tables.table_names().into_iter().any(|table| {
+        if let Some(table_name) = table.get(0) {
+            return table_name.to_owned().eq(name);
         }
 
-        self.client.as_ref().unwrap()
-    }
-}
+        false
+    });
 
-pub static mut DATABASE: Database = Database {
-    client: None,
-};
+    Ok(exists)
+}
 
 pub async fn create_table(
     client: &Client,
     table: &str,
     key: &str,
-) -> Result<CreateTableOutput, Error> {
+) -> Result<()> {
+    let table_exists = check_table_exists(client, table).await?;
+
+    if table_exists {
+        return Ok(());
+    }
+
     let a_name: String = key.into();
     let table_name: String = table.into();
 
@@ -61,24 +68,14 @@ pub async fn create_table(
         .write_capacity_units(5)
         .build();
 
-    let create_table_response = client
+    let _ = client
         .create_table()
         .table_name(table_name)
         .key_schema(ks)
         .attribute_definitions(ad)
         .provisioned_throughput(pt)
         .send()
-        .await;
+        .await?;
 
-    match create_table_response {
-        Ok(out) => {
-            println!("Added table {} with key {}", table, key);
-            Ok(out)
-        }
-        Err(e) => {
-            eprintln!("Got an error creating table:");
-            eprintln!("{}", e);
-            Err(e.into())
-        }
-    }
+    Ok(())
 }
