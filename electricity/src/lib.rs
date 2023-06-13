@@ -12,25 +12,32 @@ pub async fn console_lib() -> Result<(), Error> {
     let dates = vec![
         ShutDownParseData {
             days_number: 0,
-            page_url: String::from("https://elektrodistribucija.rs/planirana-iskljucenja-beograd/Dan_0_Iskljucenja.htm"),
-            city: String::from("Belgrade")
+            page_url: String::from(
+                "https://elektrodistribucija.rs/planirana-iskljucenja-beograd/Dan_0_Iskljucenja.htm",
+            ),
+            city: String::from("Belgrade"),
         },
         ShutDownParseData {
             days_number: 0,
-            page_url: String::from("https://elektrodistribucija.rs/planirana-iskljucenja-beograd/Dan_1_Iskljucenja.htm"),
-            city: String::from("Belgrade")
+            page_url: String::from(
+                "https://elektrodistribucija.rs/planirana-iskljucenja-beograd/Dan_1_Iskljucenja.htm",
+            ),
+            city: String::from("Belgrade"),
         },
         ShutDownParseData {
             days_number: 0,
-            page_url: String::from("https://elektrodistribucija.rs/planirana-iskljucenja-beograd/Dan_2_Iskljucenja.htm"),
-            city: String::from("Belgrade")
+            page_url: String::from(
+                "https://elektrodistribucija.rs/planirana-iskljucenja-beograd/Dan_2_Iskljucenja.htm",
+            ),
+            city: String::from("Belgrade"),
         },
         ShutDownParseData {
             days_number: 0,
-            page_url: String::from("https://elektrodistribucija.rs/planirana-iskljucenja-beograd/Dan_3_Iskljucenja.htm"),
-            city: String::from("Belgrade")
+            page_url: String::from(
+                "https://elektrodistribucija.rs/planirana-iskljucenja-beograd/Dan_3_Iskljucenja.htm",
+            ),
+            city: String::from("Belgrade"),
         },
-        
     ];
 
     for date in dates {
