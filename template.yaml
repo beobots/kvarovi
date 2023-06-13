@@ -1,0 +1,50 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Beograd Telegram Bots
+
+Globals:
+  Function:
+    Timeout: 100
+    MemorySize: 128
+
+Resources:
+  Table:
+    Type: AWS::Serverless::SimpleTable
+    Properties:
+      PrimaryKey:
+        Name: id
+        Type: String
+
+  ElectroCollector:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: rust-cargolambda
+      BuildProperties:
+        Binary: sample
+      BuildArchitecture: x86_64
+    Properties:
+      CodeUri: ./
+      Handler: bootstrap
+      Runtime: provided.al2
+      Events:
+        ScheduleEvent:
+          Type: ScheduleV2
+          Properties:
+            ScheduleExpression: "rate(1 hour)"
+            RetryPolicy:
+              MaximumRetryAttempts: 3
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref Table
+      Policies:
+        - DynamoDBWritePolicy:
+            TableName: !Ref Table
+
+Outputs:
+  ElectroCollector:
+    Description: "Collect electro time tables"
+    Value: !GetAtt ElectroCollector.Arn
+  PutTable:
+    Description: "DynamoDB table name"
+    Value: !GetAtt Table.Arn
