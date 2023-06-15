@@ -2,6 +2,8 @@ extern crate reqwest;
 
 use reqwest::Error;
 
+mod translit;
+
 struct ShutDownParseData {
     days_number: i8,
     page_url: String,
