@@ -14,19 +14,12 @@ jobs:
         toolchain: [stable]
     steps:
       - uses: actions/checkout@v3
-
       - name: Install Rust Toolchain Components
         uses: actions-rs/toolchain@v1
         with:
           override: true
           toolchain: ${{ matrix.toolchain }}
-
-      - name: cargo generate-lockfile
-        if: hashFiles('Cargo.lock') == ''
-        run: cargo generate-lockfile
-
       - uses: Swatinem/rust-cache@v2
-
       - name: cargo test --locked
         run: cargo test --locked --all-features --all-targets
 
@@ -38,33 +31,17 @@ jobs:
     name: ubuntu / stable / coverage
     steps:
       - uses: actions/checkout@v3
-
       - name: Install Rust Toolchain Components
         uses: actions-rs/toolchain@v1
         with:
           override: true
-          toolchain: nightly
-
-      - name: Cargo clean
-        uses: actions-rs/cargo@v1
+          toolchain: stable
+      - name: Run cargo-tarpaulin
+        uses: actions-rs/tarpaulin@v0.1
         with:
-          command: clean
-
-      - name: Run tests
-        uses: actions-rs/cargo@v1
+          version: '0.20.1'
+          args: '--workspace --line'
+      - name: Upload to codecov.io
+        uses: codecov/codecov-action@v3
         with:
-          command: test
-          args: --verbose --no-fail-fast
-        env:
-          CARGO_INCREMENTAL: '0'
-          RUSTFLAGS: '-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Cpanic=abort -Zpanic_abort_tests'
-          RUSTDOCFLAGS: '-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Cpanic=abort -Zpanic_abort_tests'
-
-      - name: Run grcov
-        uses: actions-rs/grcov@v0.1.6
-
-      - name: Upload report to codecov
-        uses: codecov/codecov-action@v3.1.0
-        with:
-          verbose: true
           fail_ci_if_error: true
