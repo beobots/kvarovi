@@ -32,9 +32,8 @@ jobs:
   clippy:
     runs-on: ubuntu-latest
     permissions:
-      id-token: write
       contents: read
-      issues: write
+      checks: write
       pull-requests: write
     name: stable / clippy
     steps:
