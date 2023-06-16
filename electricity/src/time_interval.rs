@@ -14,10 +14,12 @@ pub struct TimeInterval {
 }
 
 impl TimeInterval {
+    #[allow(unused)]
     pub fn new(from: NaiveTime, to: NaiveTime) -> Self {
         Self { from, to }
     }
 
+    #[allow(unused)]
     pub fn parse(input: &str) -> Result<Self, Err<Error<&str>>> {
         let (_, result) = parse_interval(input)?;
         Ok(result)
@@ -37,7 +39,7 @@ fn digit_parse(input: &str) -> IResult<&str, u32> {
 fn parse_time(input: &str) -> IResult<&str, NaiveTime> {
     map_res(
         separated_pair(digit_parse, tag(":"), digit_parse),
-        |(hh, mm)| NaiveTime::from_hms_opt(hh, mm, 0).ok_or_else(|| "invalid native time"),
+        |(hh, mm)| NaiveTime::from_hms_opt(hh, mm, 0).ok_or("invalid native time"),
     )(input)
 }
 
