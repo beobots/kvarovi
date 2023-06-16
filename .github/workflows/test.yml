@@ -39,7 +39,6 @@ jobs:
       - name: Install Rust Toolchain Components
         uses: actions-rs/toolchain@v1
         with:
-          components: llvm-tools-preview
           override: true
           toolchain: stable
 
@@ -52,8 +51,8 @@ jobs:
       - name: Run cargo-tarpaulin
         uses: actions-rs/tarpaulin@v0.1
         with:
-          version: '0.15.0'
-          args: '-- --test-threads 1'
+          version: '0.25.2'
+          args: '--workspace --all-features --all-targets --line -- --test-threads 1'
 
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v3
