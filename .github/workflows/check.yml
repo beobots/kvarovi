@@ -41,5 +41,6 @@ jobs:
           override: true
           toolchain: stable
       - uses: Swatinem/rust-cache@v2
-      - name: clippy
-        run: cargo clippy --all --all-targets
+      - uses: actions-rs/clippy@master
+        with:
+          args: --all-features --all-targets

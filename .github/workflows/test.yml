@@ -25,26 +25,10 @@ jobs:
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
 
-      - name: Restore cached target/
-        id: target-cache-restore
-        uses: actions/cache/restore@v3
-        with:
-          path: |
-            target
-            /home/runner/.cargo
-          key: ${{ matrix.toolchain }}-target
+      - uses: Swatinem/rust-cache@v2
 
       - name: cargo test --locked
         run: cargo test --locked --all-features --all-targets
-
-      - name: Save cached target/
-        id: target-cache-save
-        uses: actions/cache/save@v3
-        with:
-          path: |
-            target
-            /home/runner/.cargo
-          key: ${{ steps.target-cache-restore.outputs.cache-primary-key }}
 
   coverage:
     runs-on: ubuntu-latest
@@ -59,39 +43,17 @@ jobs:
           override: true
           toolchain: stable
 
-      - name: cargo install cargo-llvm-cov
-        uses: taiki-e/install-action@cargo-llvm-cov
-
       - name: cargo generate-lockfile
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
 
-      - name: Restore cached target/
-        id: target-cache-restore
-        uses: actions/cache/restore@v3
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Run cargo-tarpaulin
+        uses: actions-rs/tarpaulin@v0.1
         with:
-          path: |
-            target
-            /home/runner/.cargo
-          key: coverage-target
-
-      - name: cargo llvm-cov clean
-        run: cargo llvm-cov clean --workspace
-
-      - name: cargo llvm-cov
-        run: cargo llvm-cov --locked --all-features --no-report --release
-
-      - name: Save cached target/
-        id: target-cache-save
-        uses: actions/cache/save@v3
-        with:
-          path: |
-            target
-            /home/runner/.cargo
-          key: ${{ steps.target-cache-restore.outputs.cache-primary-key }}
-
-      - name: cargo llvm-cov report
-        run: cargo llvm-cov report --release --lcov --output-path lcov.info
+          version: '0.15.0'
+          args: '-- --test-threads 1'
 
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v3
