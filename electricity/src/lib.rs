@@ -2,6 +2,7 @@ extern crate reqwest;
 
 use reqwest::Error;
 
+mod time_interval;
 mod translit;
 
 struct ShutDownParseData {
