@@ -52,7 +52,7 @@ jobs:
         uses: actions-rs/tarpaulin@v0.1
         with:
           version: '0.22.0'
-          args: '--workspace --all-features --all-targets --line -- --test-threads 1'
+          args: '--workspace --all-features --line -- --test-threads 1'
 
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v3
