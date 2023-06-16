@@ -43,23 +43,17 @@ jobs:
           override: true
           toolchain: stable
 
-      - name: cargo install cargo-llvm-cov
-        uses: taiki-e/install-action@cargo-llvm-cov
-
       - name: cargo generate-lockfile
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
 
       - uses: Swatinem/rust-cache@v2
 
-      - name: cargo llvm-cov clean
-        run: cargo llvm-cov clean --workspace
-
-      - name: cargo llvm-cov
-        run: cargo llvm-cov --locked --all-features --no-report --release
-
-      - name: cargo llvm-cov report
-        run: cargo llvm-cov report --release --lcov --output-path lcov.info
+      - name: Run cargo-tarpaulin
+        uses: actions-rs/tarpaulin@v0.1
+        with:
+          version: '0.15.0'
+          args: '-- --test-threads 1'
 
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v3
