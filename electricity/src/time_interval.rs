@@ -65,19 +65,19 @@ mod tests {
 
         #[test]
         fn test_parse_time(h in 0u32..24u32, m in 0u32..60u32) {
-            let (_, time) = parse_time(&format!("{h:02}:{m:02}")).expect("can parse time");
-            prop_assert_eq!(time, NaiveTime::from_hms_opt(h, m, 00).expect("can parse the time"));
+            let (_, time) = parse_time(&format!("{h:02}:{m:02}")).expect("parse time");
+            prop_assert_eq!(time, NaiveTime::from_hms_opt(h, m, 00).expect("parse the time"));
         }
 
         #[test]
         fn test_parse_interval(h1 in 0u32..24u32, m1 in 0u32..60u32, h2 in 0u32..24u32, m2 in 0u32..60u32) {
             let time_string = format!("{h1:02}:{m1:02}-{h2:02}:{m2:02}");
-            let time_range = TimeInterval::parse(&time_string).expect("can parse time interval");
+            let time_range = TimeInterval::parse(&time_string).expect("parse time interval");
             prop_assert_eq!(
                 time_range,
                 TimeInterval::new(
-                    NaiveTime::from_hms_opt(h1, m1, 0).expect("can parse the time"),
-                    NaiveTime::from_hms_opt(h2, m2, 0).expect("can parse the time")
+                    NaiveTime::from_hms_opt(h1, m1, 0).expect("parse the time"),
+                    NaiveTime::from_hms_opt(h2, m2, 0).expect("parse the time")
                 )
             );
         }
