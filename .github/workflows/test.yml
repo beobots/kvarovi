@@ -8,17 +8,14 @@ name: test
 jobs:
   required:
     runs-on: ubuntu-latest
-    name: ubuntu / ${{ matrix.toolchain }}
-    strategy:
-      matrix:
-        toolchain: [stable]
+    name: tests / stable
     steps:
       - uses: actions/checkout@v3
       - name: Install Rust Toolchain Components
         uses: actions-rs/toolchain@v1
         with:
           override: true
-          toolchain: ${{ matrix.toolchain }}
+          toolchain: stable
       - uses: Swatinem/rust-cache@v2
       - name: cargo test --locked
         run: cargo test --locked --all-features --all-targets
@@ -28,7 +25,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
-    name: ubuntu / stable / coverage
+    name: stable / coverage
     steps:
       - uses: actions/checkout@v3
       - name: Install Rust Toolchain Components
