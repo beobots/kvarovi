@@ -8,7 +8,7 @@ name: check
 jobs:
   rustfmt:
     runs-on: ubuntu-latest
-    name: stable / fmt
+    name: fmt
     steps:
       - uses: actions/checkout@v3
       - name: Install Rust Toolchain Components
@@ -26,6 +26,7 @@ jobs:
       contents: read
       checks: write
       pull-requests: write
+    name: audit
     steps:
       - uses: actions/checkout@v1
       - name: audit
@@ -39,7 +40,7 @@ jobs:
       contents: read
       checks: write
       pull-requests: write
-    name: stable / clippy
+    name: clippy
     steps:
       - uses: actions/checkout@v3
       - name: Install Rust Toolchain Components
