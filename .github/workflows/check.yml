@@ -22,6 +22,10 @@ jobs:
 
   audit:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v1
       - name: audit
