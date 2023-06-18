@@ -1,5 +1,7 @@
 extern crate reqwest;
 
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 use anyhow::{Ok, Result};
 use aws_sdk_dynamodb::{types::AttributeValue, Client};
 use chrono::NaiveDate;
@@ -8,6 +10,11 @@ use scraper::{Html, Selector};
 use uuid::Uuid;
 
 pub mod db;
+pub mod elektrodistribucija_parser;
+
+use elektrodistribucija_parser::{get_page_date};
+
+const RAW_DATA_TABLE_NAME: &str = "electricity_failures_raw";
 
 struct TableRowData {
     city: String,
@@ -22,33 +29,41 @@ async fn fetch_page(url: &str) -> Result<String> {
     Ok(response.text().await?)
 }
 
-pub async fn collect_data(db_client: &Client, pages: &[String]) {
-    let mut table_rows: Vec<TableRowData> = vec![];
-
+pub async fn collect_data(db_client: &Client, pages: &[String]) -> Result<()> {
     let requests = pages.iter().map(|page| {
         let p = page.clone();
-        tokio::spawn(async move { request_page(p).await })
+        tokio::task::spawn_blocking(move || {
+            tokio::task::spawn(async move { (p.clone(), request_page(p).await) })
+        })
     });
 
     let results = futures::future::join_all(requests).await;
 
+    let _ = create_table(db_client, RAW_DATA_TABLE_NAME, "id").await;
+
     for result in results {
-        table_rows.append(&mut result.unwrap())
+        let (page, html) = result.unwrap().await?;
+
+        let _ = add_electricity_failure_raw_item(db_client, &html.unwrap(), &page).await;
     }
 
-    let _ = create_table(db_client, "electricity_failures", "id").await;
-
-    for table_row in table_rows {
-        let _ = add_electricity_failure_item(db_client, &table_row).await;
-    }
+    Ok(())
 }
 
-async fn request_page(page: String) -> Vec<TableRowData> {
-    let html = fetch_page(&page).await.unwrap();
-    let rows: Vec<TableRowData> = parse_page_to_rows(html);
+async fn request_page(page: String) -> Result<String> {
+    let html = fetch_page(&page).await?;
 
-    rows
+    println!("request_page: {}", page);
+
+    Ok(html)
 }
+
+// async fn request_page(page: String) -> Result<Vec<TableRowData>> {
+//     let html = fetch_page(&page).await?;
+//     let rows: Vec<TableRowData> = parse_page_to_rows(html);
+
+//     Ok(rows)
+// }
 
 fn format_date(date: String) -> String {
     let mut naive_date = NaiveDate::parse_from_str(&date, "%Y-%m-%d");
@@ -162,6 +177,47 @@ fn parse_page_to_rows(page_html: String) -> Vec<TableRowData> {
     table_rows
 }
 
+async fn add_electricity_failure_raw_item(client: &Client, html: &str, page: &str) -> Result<()> {
+    let id = Uuid::new_v4().to_string();
+    let date = format_date(get_page_date(html));
+    let page = page.to_owned();
+    let hash = {
+        let mut hasher = DefaultHasher::new();
+        html.hash(&mut hasher);
+        hasher.finish().to_string()
+    };
+
+    let (last_version, last_version_hash) = find_last_electricity_failure_raw_version(client, page.to_owned(), date.to_owned()).await?;
+
+    if let Some(last_version_hash) = last_version_hash {
+        if last_version_hash == hash {
+            return Ok(());
+        }
+    }
+
+    let id_av = AttributeValue::S(id);
+    let date_av = AttributeValue::S(date);
+    let page_av = AttributeValue::S(page);
+    let html_av = AttributeValue::S(html.to_owned());
+    let hash_av = AttributeValue::S(hash);
+    let version_av = AttributeValue::N((last_version + 1).to_string());
+
+
+    let request = client
+        .put_item()
+        .table_name(RAW_DATA_TABLE_NAME)
+        .item("id", id_av)
+        .item("date", date_av)
+        .item("url", page_av)
+        .item("html", html_av)
+        .item("hash", hash_av)
+        .item("version", version_av);
+
+    let _ = request.send().await?;
+
+    Ok(())
+}
+
 async fn add_electricity_failure_item(client: &Client, item: &TableRowData) -> Result<()> {
     let id = Uuid::new_v4().to_string();
     let city_av = AttributeValue::S(item.city.to_owned());
@@ -189,6 +245,38 @@ async fn add_electricity_failure_item(client: &Client, item: &TableRowData) -> R
     let _ = request.send().await?;
 
     Ok(())
+}
+
+async fn find_last_electricity_failure_raw_version(client: &Client, url: String, date: String) -> Result<(i32, Option<String>)> {
+    let url_av = AttributeValue::S(url);
+    let date_av = AttributeValue::S(date);
+
+    let results = client
+        .scan()
+        .table_name(RAW_DATA_TABLE_NAME)
+        .filter_expression("#url = :url and #date = :date")
+        .expression_attribute_names("#url", "url")
+        .expression_attribute_names("#date", "date")
+        .expression_attribute_values(":url", url_av)
+        .expression_attribute_values(":date", date_av)
+        .send()
+        .await?;
+
+    let mut last_version = 0;
+    let mut last_version_hash = None;
+
+    if let Some(items) = results.items() {
+        items.into_iter().for_each(|item| {
+            let version = item.get("version").unwrap().as_n().unwrap().parse::<i32>().unwrap();
+            let hash = item.get("hash").unwrap().as_s().unwrap().to_owned();
+            if version > last_version {
+                last_version = version;
+                last_version_hash = Some(hash);
+            }
+        });
+    }
+
+    Ok((last_version, last_version_hash))
 }
 
 #[allow(dead_code)]

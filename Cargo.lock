@@ -601,6 +601,7 @@ dependencies = [
  "component",
  "dotenvy",
  "futures",
+ "nom",
  "reqwest",
  "scraper",
  "tokio",

@@ -6,10 +6,10 @@ use aws_sdk_dynamodb::{
 };
 use std::env;
 
-async fn make_config() -> Config {
+async fn make_config() -> Result<Config> {
     let database_url = env::var("DATABASE_URL").unwrap_or("http://localhost:8000".to_owned());
-    let profile_name = env::var("AWS_PROFILE").unwrap();
-    let region = env::var("AWS_REGION").unwrap();
+    let profile_name = env::var("AWS_PROFILE")?;
+    let region = env::var("AWS_REGION")?;
 
     let config = aws_config::from_env()
         .profile_name(&profile_name)
@@ -17,14 +17,14 @@ async fn make_config() -> Config {
         .load()
         .await;
 
-    aws_sdk_dynamodb::config::Builder::from(&config)
+    Ok(aws_sdk_dynamodb::config::Builder::from(&config)
         .endpoint_url(&database_url)
-        .build()
+        .build())
 }
 
-pub async fn init_client() -> Client {
-    let config = make_config().await;
-    Client::from_conf(config)
+pub async fn init_client() -> Result<Client> {
+    let config = make_config().await?;
+    Ok(Client::from_conf(config))
 }
 
 pub async fn check_table_exists(client: &Client, name: &str) -> Result<bool> {
