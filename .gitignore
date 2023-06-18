@@ -1,3 +1,4 @@
 target
 .aws-sam/
 .idea/
+.env
