@@ -1,6 +1,6 @@
 extern crate reqwest;
 
-use anyhow::{Ok, Result};
+use anyhow::{anyhow, Ok, Result};
 use aws_sdk_dynamodb::{types::AttributeValue, Client};
 use chrono::NaiveDate;
 use db::create_table;
@@ -50,25 +50,25 @@ pub async fn collect_data(db_client: &Client, pages: &[String]) -> Result<()> {
     for result in results {
         let (page, html) = result.unwrap().await?;
 
-        let _ = add_electricity_failure_raw_item(db_client, &html.unwrap(), &page).await;
+        let _ = add_electricity_failure_raw_item(db_client, &html?, &page).await;
     }
 
     Ok(())
 }
 
-fn format_date(date: String) -> String {
+fn format_date(date: String) -> Result<String> {
     let mut naive_date = NaiveDate::parse_from_str(&date, "%Y-%m-%d");
 
     if naive_date.is_err() {
         naive_date = NaiveDate::parse_from_str(&date, "%d-%m-%Y");
     }
 
-    naive_date.unwrap().format("%d-%m-%Y").to_string()
+    Ok(naive_date?.format("%d-%m-%Y").to_string())
 }
 
 async fn add_electricity_failure_raw_item(client: &Client, html: &str, page: &str) -> Result<()> {
     let id = Uuid::new_v4().to_string();
-    let date = format_date(get_page_date(html));
+    let date = format_date(get_page_date(html))?;
     let page = page.to_owned();
     let hash = {
         let mut hasher = DefaultHasher::new();
@@ -217,12 +217,12 @@ async fn add_electricity_failure_item(client: &Client, item: &TableRowData) -> R
 }
 
 #[allow(dead_code)]
-fn parse_page_to_rows(page_html: String) -> Vec<TableRowData> {
+fn parse_page_to_rows(page_html: String) -> Result<Vec<TableRowData>> {
     let header: String = get_page_header(&page_html);
     let date = header
         .split(' ')
         .last()
-        .unwrap()
+        .ok_or(anyhow!("Cell is missing"))?
         .to_owned()
         .split('.')
         .filter(|&str| !str.is_empty())
@@ -232,7 +232,7 @@ fn parse_page_to_rows(page_html: String) -> Vec<TableRowData> {
         .split(" - ")
         .collect::<Vec<_>>()
         .first()
-        .unwrap()
+        .ok_or(anyhow!("Cell is missing"))?
         .to_string();
 
     let table = get_content_table_html(&page_html);
@@ -242,7 +242,7 @@ fn parse_page_to_rows(page_html: String) -> Vec<TableRowData> {
     let mut table_rows: Vec<TableRowData> = vec![];
 
     let rows = table.select(&tr_selector).collect::<Vec<_>>();
-    let heading_row = rows.get(0).unwrap();
+    let heading_row = rows.get(0).ok_or(anyhow!("Heading row is missing"))?;
     let heading_td = heading_row.select(&td_selector);
 
     let street_index = heading_td
@@ -299,9 +299,57 @@ fn parse_page_to_rows(page_html: String) -> Vec<TableRowData> {
             time,
             street,
             city: city.clone(),
-            date: format_date(date.clone()),
+            date: format_date(date.clone())?,
         })
     }
 
-    table_rows
+    Ok(table_rows)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_page_page_to_rows() {
+        let page_html = r#"
+            <html>
+                <head>
+                    <title>Test</title>
+                </head>
+                <body>
+                    <table>
+                        <tbody>
+                            <tr>
+                                <td><b>Скопје - Центар - 01.01.2021</b></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <table>
+                        <tbody>
+                            <tr>
+                                <td>Општина</td>
+                                <td>Време</td>
+                                <td>Улице</td>
+                            </tr>
+                            <tr>
+                                <td>Центар</td>
+                                <td>08:00 - 16:00</td>
+                                <td>Бул. Климент Охридски</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </body>
+            </html>
+        "#;
+
+        let rows = parse_page_to_rows(page_html.to_owned()).unwrap();
+
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].city, "Скопје");
+        assert_eq!(rows[0].region, "Центар");
+        assert_eq!(rows[0].street, "Бул. Климент Охридски");
+        assert_eq!(rows[0].time, "08:00 - 16:00");
+        assert_eq!(rows[0].date, "01-01-2021");
+    }
 }
