@@ -9,15 +9,12 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use uuid::Uuid;
 
-
 mod addresses;
-
 
 pub mod db;
 pub mod elektrodistribucija_parser;
 pub mod time_interval;
 pub mod translit;
-
 
 use elektrodistribucija_parser::{get_content_table_html, get_page_date, get_page_header};
 
