@@ -6,6 +6,8 @@
 //! and they are called BB (Bez Broj or without number).
 #![allow(unused)]
 
+use std::borrow::Borrow;
+
 use nom::branch::alt;
 use nom::bytes::complete::{tag, tag_no_case, take_until1};
 use nom::character::complete::{alpha0, digit1, multispace0};
@@ -19,6 +21,21 @@ use nom::{Err, IResult};
 pub struct BrojNumber<'a> {
     value: usize,
     extension: Option<&'a str>,
+}
+
+#[derive(Eq, PartialEq, Clone, Debug)]
+pub struct BrojNumberOwned {
+    value: usize,
+    extension: Option<String>,
+}
+
+impl<'a> BrojNumber<'a> {
+    fn to_owned(&self) -> BrojNumberOwned {
+        BrojNumberOwned {
+            value: self.value,
+            extension: self.extension.map(|s| s.to_owned()),
+        }
+    }
 }
 
 impl<'a> From<(usize, Option<&'a str>)> for BrojNumber<'a> {
@@ -43,6 +60,21 @@ impl<'a> From<usize> for BrojNumber<'a> {
 pub struct BrojRange<'a> {
     from: BrojNumber<'a>,
     to: BrojNumber<'a>,
+}
+
+#[derive(Eq, PartialEq, Clone, Debug)]
+pub struct BrojRangeOwned {
+    from: BrojNumberOwned,
+    to: BrojNumberOwned,
+}
+
+impl<'a> BrojRange<'a> {
+    fn to_owned(&self) -> BrojRangeOwned {
+        BrojRangeOwned {
+            from: self.from.to_owned(),
+            to: self.to.to_owned(),
+        }
+    }
 }
 
 impl<'a> From<(usize, usize)> for BrojRange<'a> {
@@ -76,6 +108,23 @@ pub enum Broj<'a> {
     Range(BrojRange<'a>),
 }
 
+#[derive(Eq, PartialEq, Clone, Debug)]
+pub enum BrojOwned {
+    Bez,
+    Number(BrojNumberOwned),
+    Range(BrojRangeOwned),
+}
+
+impl<'a> Broj<'a> {
+    fn to_owned(&self) -> BrojOwned {
+        match self {
+            Broj::Bez => BrojOwned::Bez,
+            Broj::Number(v) => BrojOwned::Number(v.to_owned()),
+            Broj::Range(v) => BrojOwned::Range(v.to_owned()),
+        }
+    }
+}
+
 impl<'a> From<BrojNumber<'a>> for Broj<'a> {
     fn from(v: BrojNumber<'a>) -> Self {
         Broj::Number(v)
@@ -92,6 +141,21 @@ impl<'a> From<BrojRange<'a>> for Broj<'a> {
 pub struct AddressRecord<'a> {
     street: &'a str,
     numbers: Vec<Broj<'a>>,
+}
+
+#[derive(Eq, PartialEq, Debug)]
+pub struct AddressRecordOwned {
+    street: String,
+    numbers: Vec<BrojOwned>,
+}
+
+impl<'a> AddressRecord<'a> {
+    fn to_owned(&self) -> AddressRecordOwned {
+        AddressRecordOwned {
+            street: self.street.to_owned(),
+            numbers: self.numbers.iter().map(|x| x.to_owned()).collect(),
+        }
+    }
 }
 
 impl<'a> AddressRecord<'a> {
@@ -161,12 +225,33 @@ pub struct Addresses<'a> {
     items: Vec<AddressRecord<'a>>,
 }
 
+#[derive(Eq, PartialEq, Debug)]
+pub struct AddressesOwned {
+    items: Vec<AddressRecordOwned>,
+}
+
 impl<'a> Addresses<'a> {
     #[inline(always)]
     pub fn parse(input: &'a str) -> Result<Addresses<'a>, Err<Error<&str>>> {
         match addresses(input) {
             Ok((_, items)) => Ok(Self { items }),
             Err(err) => Err(err),
+        }
+    }
+}
+
+impl<'a> Borrow<Addresses<'a>> for AddressesOwned {
+    fn borrow(&self) -> &Addresses<'a> {
+        unimplemented!()
+    }
+}
+
+impl ToOwned for Addresses<'_> {
+    type Owned = AddressesOwned;
+
+    fn to_owned(&self) -> AddressesOwned {
+        AddressesOwned {
+            items: self.items.iter().map(|x| x.to_owned()).collect(),
         }
     }
 }

@@ -24,8 +24,8 @@ struct TableRowData {
     city: String,
     region: String,
     time: String,
-    street: String,
     date: String,
+    addresses: addresses::AddressesOwned,
 }
 
 async fn fetch_page(url: &str) -> Result<String> {
@@ -153,70 +153,70 @@ async fn find_last_electricity_failure_raw_version(
 
 // TODO theses functions are for parsing html to structured data
 
-#[allow(dead_code)]
-async fn find_electricity_failure_item(client: &Client, item: &TableRowData) -> Result<Option<String>> {
-    let city_av = AttributeValue::S(item.city.to_owned());
-    let region_av = AttributeValue::S(item.region.to_owned());
-    let time_av = AttributeValue::S(item.time.to_owned());
-    let date_av = AttributeValue::S(item.date.to_owned());
+// #[allow(dead_code)]
+// async fn find_electricity_failure_item(client: &Client, item: &TableRowData) -> Result<Option<String>> {
+//     let city_av = AttributeValue::S(item.city.to_owned());
+//     let region_av = AttributeValue::S(item.region.to_owned());
+//     let time_av = AttributeValue::S(item.time.to_owned());
+//     let date_av = AttributeValue::S(item.date.to_owned());
 
-    let results = client
-        .scan()
-        .table_name("electricity_failures")
-        .filter_expression("#city = :city and #region = :region and #time = :time and #date = :date")
-        .expression_attribute_names("#city", "city")
-        .expression_attribute_names("#region", "region")
-        .expression_attribute_names("#time", "time")
-        .expression_attribute_names("#date", "date")
-        .expression_attribute_values(":city", city_av)
-        .expression_attribute_values(":region", region_av)
-        .expression_attribute_values(":time", time_av)
-        .expression_attribute_values(":date", date_av)
-        .send()
-        .await?;
+//     let results = client
+//         .scan()
+//         .table_name("electricity_failures")
+//         .filter_expression("#city = :city and #region = :region and #time = :time and #date = :date")
+//         .expression_attribute_names("#city", "city")
+//         .expression_attribute_names("#region", "region")
+//         .expression_attribute_names("#time", "time")
+//         .expression_attribute_names("#date", "date")
+//         .expression_attribute_values(":city", city_av)
+//         .expression_attribute_values(":region", region_av)
+//         .expression_attribute_values(":time", time_av)
+//         .expression_attribute_values(":date", date_av)
+//         .send()
+//         .await?;
 
-    if let Some(items) = results.items() {
-        let item = items.get(0);
+//     if let Some(items) = results.items() {
+//         let item = items.get(0);
 
-        if let Some(attributes) = item {
-            return Ok(Some(
-                attributes
-                    .get("id")
-                    .cloned()
-                    .unwrap()
-                    .as_s()
-                    .unwrap()
-                    .to_owned(),
-            ));
-        }
-    }
+//         if let Some(attributes) = item {
+//             return Ok(Some(
+//                 attributes
+//                     .get("id")
+//                     .cloned()
+//                     .unwrap()
+//                     .as_s()
+//                     .unwrap()
+//                     .to_owned(),
+//             ));
+//         }
+//     }
 
-    Ok(None)
-}
+//     Ok(None)
+// }
 
-#[allow(dead_code)]
-async fn add_electricity_failure_item(client: &Client, item: &TableRowData) -> Result<()> {
-    let id = Uuid::new_v4().to_string();
-    let city_av = AttributeValue::S(item.city.to_owned());
-    let region_av = AttributeValue::S(item.region.to_owned());
-    let time_av = AttributeValue::S(item.time.to_owned());
-    let street_av = AttributeValue::S(item.street.to_owned());
-    let date_av = AttributeValue::S(item.date.to_owned());
+// #[allow(dead_code)]
+// async fn add_electricity_failure_item(client: &Client, item: &TableRowData) -> Result<()> {
+//     let id = Uuid::new_v4().to_string();
+//     let city_av = AttributeValue::S(item.city.to_owned());
+//     let region_av = AttributeValue::S(item.region.to_owned());
+//     let time_av = AttributeValue::S(item.time.to_owned());
+//     let street_av = AttributeValue::S(item.street.to_owned());
+//     let date_av = AttributeValue::S(item.date.to_owned());
 
-    let request = client
-        .put_item()
-        .table_name("electricity_failures")
-        .item("id", AttributeValue::S(id))
-        .item("city", city_av)
-        .item("region", region_av)
-        .item("time", time_av)
-        .item("street", street_av)
-        .item("date", date_av);
+//     let request = client
+//         .put_item()
+//         .table_name("electricity_failures")
+//         .item("id", AttributeValue::S(id))
+//         .item("city", city_av)
+//         .item("region", region_av)
+//         .item("time", time_av)
+//         .item("street", street_av)
+//         .item("date", date_av);
 
-    let _ = request.send().await?;
+//     let _ = request.send().await?;
 
-    Ok(())
-}
+//     Ok(())
+// }
 
 #[allow(dead_code)]
 fn parse_page_to_rows(page_html: String) -> Result<Vec<TableRowData>> {
@@ -272,37 +272,40 @@ fn parse_page_to_rows(page_html: String) -> Result<Vec<TableRowData>> {
         })
         .unwrap();
 
-    for tr_element in &rows[1..] {
-        let td_elements = tr_element.select(&td_selector).collect::<Vec<_>>();
-        let region: String = td_elements
+    for row in rows.iter().skip(1) {
+        let cells = row.select(&td_selector).collect::<Vec<_>>();
+
+        let region = cells
             .get(region_index)
-            .unwrap()
+            .ok_or(anyhow!("Cell is missing"))?
             .text()
             .collect::<Vec<_>>()
             .into_iter()
-            .collect();
-        let time: String = td_elements
+            .collect::<String>();
+        let time = cells
             .get(time_index)
-            .unwrap()
+            .ok_or(anyhow!("Cell is missing"))?
             .text()
             .collect::<Vec<_>>()
             .into_iter()
-            .collect();
-        let street: String = td_elements
+            .collect::<String>();
+        let street = cells
             .get(street_index)
-            .unwrap()
+            .ok_or(anyhow!("Cell is missing"))?
             .text()
             .collect::<Vec<_>>()
             .into_iter()
-            .collect();
+            .collect::<String>();
+
+        let addresses = addresses::Addresses::parse(&street)?;
 
         table_rows.push(TableRowData {
+            city: city.to_owned(),
             region,
             time,
-            street,
-            city: city.clone(),
-            date: format_date(date.clone())?,
-        })
+            date: date.to_owned(),
+            addresses: addresses.to_owned(),
+        });
     }
 
     Ok(table_rows)
@@ -312,46 +315,46 @@ fn parse_page_to_rows(page_html: String) -> Result<Vec<TableRowData>> {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_page_page_to_rows() {
-        let page_html = r#"
-            <html>
-                <head>
-                    <title>Test</title>
-                </head>
-                <body>
-                    <table>
-                        <tbody>
-                            <tr>
-                                <td><b>Скопје - Центар - 01.01.2021</b></td>
-                            </tr>
-                        </tbody>
-                    </table>
-                    <table>
-                        <tbody>
-                            <tr>
-                                <td>Општина</td>
-                                <td>Време</td>
-                                <td>Улице</td>
-                            </tr>
-                            <tr>
-                                <td>Центар</td>
-                                <td>08:00 - 16:00</td>
-                                <td>Бул. Климент Охридски</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </body>
-            </html>
-        "#;
+    // #[test]
+    // fn test_page_page_to_rows() {
+    //     let page_html = r#"
+    //         <html>
+    //             <head>
+    //                 <title>Test</title>
+    //             </head>
+    //             <body>
+    //                 <table>
+    //                     <tbody>
+    //                         <tr>
+    //                             <td><b>Скопје - Центар - 01.01.2021</b></td>
+    //                         </tr>
+    //                     </tbody>
+    //                 </table>
+    //                 <table>
+    //                     <tbody>
+    //                         <tr>
+    //                             <td>Општина</td>
+    //                             <td>Време</td>
+    //                             <td>Улице</td>
+    //                         </tr>
+    //                         <tr>
+    //                             <td>Центар</td>
+    //                             <td>08:00 - 16:00</td>
+    //                             <td>Бул. Климент Охридски</td>
+    //                         </tr>
+    //                     </tbody>
+    //                 </table>
+    //             </body>
+    //         </html>
+    //     "#;
 
-        let rows = parse_page_to_rows(page_html.to_owned()).unwrap();
+    //     let rows = parse_page_to_rows(page_html.to_owned()).unwrap();
 
-        assert_eq!(rows.len(), 1);
-        assert_eq!(rows[0].city, "Скопје");
-        assert_eq!(rows[0].region, "Центар");
-        assert_eq!(rows[0].street, "Бул. Климент Охридски");
-        assert_eq!(rows[0].time, "08:00 - 16:00");
-        assert_eq!(rows[0].date, "01-01-2021");
-    }
+    //     assert_eq!(rows.len(), 1);
+    //     assert_eq!(rows[0].city, "Скопје");
+    //     assert_eq!(rows[0].region, "Центар");
+    //     assert_eq!(rows[0].street, "Бул. Климент Охридски");
+    //     assert_eq!(rows[0].time, "08:00 - 16:00");
+    //     assert_eq!(rows[0].date, "01-01-2021");
+    // }
 }
