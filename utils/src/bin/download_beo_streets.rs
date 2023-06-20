@@ -110,16 +110,20 @@ async fn download_page(page: usize) -> Result<Vec<Record>> {
     tokio::task::spawn_blocking(move || extract_dataset(body)).await?
 }
 
+/// You can run the program as follows:
+/// ```bash
+/// download_beo_streets | tee download.csv && sort download.csv | uniq | tr '[:upper:]' '[:lower:]' > beograd_streets.csv
+/// ```
+///
+/// Pages are downloaded one after another, because the the web server cannot handle many connection simultaneously.
 #[tokio::main]
 async fn main() -> Result<()> {
-    let data = (1..=MAX_PAGES).map(|i| async move { download_page(i).await });
-
-    let result = try_join_all(data).await?.into_iter().flatten();
-
     let mut cout = stdout().lock();
-    for record in result {
-        writeln!(cout, "{record}")?;
+    for page in 1..=MAX_PAGES {
+        let dataset = download_page(page).await?;
+        for record in dataset {
+            writeln!(cout, "{record}")?;
+        }
     }
-
     Ok(())
 }
