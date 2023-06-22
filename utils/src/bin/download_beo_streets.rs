@@ -1,5 +1,4 @@
 use anyhow::{Context, Result};
-use scraper::element_ref::Select;
 use scraper::{ElementRef, Html, Selector};
 use std::fmt::{Display, Formatter};
 use std::io::{stdout, Write};
@@ -12,7 +11,16 @@ static TABLE_SELECTOR: OnceLock<Selector> = OnceLock::new();
 
 static DATA_SELECTOR: OnceLock<Selector> = OnceLock::new();
 
-#[derive(Debug)]
+fn table_selector() -> &'static Selector {
+    TABLE_SELECTOR
+        .get_or_init(|| Selector::parse("#ulicebgdoutGrid tbody > tr.pg-row").expect("initialize CSS selector"))
+}
+
+fn data_selector() -> &'static Selector {
+    DATA_SELECTOR.get_or_init(|| Selector::parse("td:not(:first-child)").expect("initialize CSS selector"))
+}
+
+#[cfg_attr(test, derive(Debug, PartialEq))]
 struct Record {
     street_name: String,
     old_street_name: Option<String>,
@@ -43,14 +51,11 @@ impl Display for Record {
     }
 }
 
-fn extract_dataset(body: String) -> Result<Vec<Record>> {
-    let table_selector = TABLE_SELECTOR
-        .get_or_init(|| Selector::parse("#ulicebgdoutGrid tbody > tr.pg-row").expect("initialize CSS selector"));
+fn extract_dataset(body: impl AsRef<str>) -> Result<Vec<Record>> {
+    let table_selector = table_selector();
+    let data_selector = data_selector();
 
-    let data_selector =
-        DATA_SELECTOR.get_or_init(|| Selector::parse("td:not(:first-child)").expect("initialize CSS selector"));
-
-    let document = Html::parse_document(&body);
+    let document = Html::parse_document(body.as_ref());
 
     let mut result = Vec::with_capacity(50);
     for row in document.select(table_selector) {
@@ -62,7 +67,7 @@ fn extract_dataset(body: String) -> Result<Vec<Record>> {
     Ok(result)
 }
 
-fn extract_record(mut data_sel: Select) -> Option<Record> {
+fn extract_record<'a>(mut data_sel: impl Iterator<Item = ElementRef<'a>>) -> Option<Record> {
     let street_name = data_sel.next().map(extract_element_text)?;
     let old_street_name = data_sel.next().map(extract_nullable_element_text)?;
     let municipality = data_sel.next().map(extract_element_text)?;
@@ -113,4 +118,203 @@ async fn main() -> Result<()> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_table_selector() {
+        let sel = table_selector();
+        let tests = [
+            (
+                r#"<html>
+            <table id="ulicebgdoutGrid">
+                <thead>
+                    <tr><td>wrong</td></tr>
+                </thead>
+                <tbody>
+                    <tr><td>wrong</td></tr>
+                    <tr class="pg-row"><td>data</td></tr>
+                </tbody>
+            </table>
+        </html>"#,
+                Some("data"),
+            ),
+            (
+                r#"<html>
+            <table id="ulicebgdoutGrid">
+                <thead>
+                    <tr><td>wrong</td></tr>
+                </thead>
+                <tbody>
+                    <tr><td>wrong</td></tr>
+                </tbody>
+            </table>
+        </html>"#,
+                None,
+            ),
+        ];
+
+        for (html, maybe_expected_value) in tests {
+            let body = Html::parse_document(&html);
+            let maybe_data = body.select(sel).next();
+            if let Some(expected_value) = maybe_expected_value {
+                let data = maybe_data.unwrap();
+                let text = extract_element_text(data);
+                assert_eq!(text, expected_value);
+            } else {
+                assert!(maybe_data.is_none())
+            }
+        }
+    }
+
+    #[test]
+    fn test_extract_dataset() {
+        let html = r#"<html><table id="ulicebgdoutGrid">
+            <tbody>
+            <tr class="pg-row">
+                <td> 1 </td>
+                <td> street_name1 </td>
+                <td> old_street_name1 </td>
+                <td> municipality1 </td>
+                <td> settlement1 </td>
+                <td> settlement_part1 </td>
+                <td> si_list1 </td>
+            </tr>
+            <tr class="pg-row">
+                <td> 2 </td>
+                <td> street_name2 </td>
+                <td> old_street_name2 </td>
+                <td> municipality2 </td>
+                <td> settlement2 </td>
+                <td> settlement_part2 </td>
+                <td> si_list2 </td>
+            </tr>
+            </tbody>
+        </table></html>"#;
+        let result = extract_dataset(html).unwrap();
+        assert_eq!(
+            result,
+            vec![
+                Record {
+                    street_name: "street_name1".to_string(),
+                    old_street_name: Some("old_street_name1".to_string()),
+                    municipality: "municipality1".to_string(),
+                    settlement: "settlement1".to_string(),
+                    settlement_part: "settlement_part1".to_string(),
+                    si_list: Some("si_list1".to_string()),
+                },
+                Record {
+                    street_name: "street_name2".to_string(),
+                    old_street_name: Some("old_street_name2".to_string()),
+                    municipality: "municipality2".to_string(),
+                    settlement: "settlement2".to_string(),
+                    settlement_part: "settlement_part2".to_string(),
+                    si_list: Some("si_list2".to_string()),
+                }
+            ]
+        )
+    }
+
+    #[test]
+    fn test_extract_element() {
+        let html = r"<table><tr><td> text </td></tr></table>";
+        let fragment = Html::parse_fragment(html);
+        let sel = Selector::parse("td").unwrap();
+        let td = fragment.select(&sel).next().unwrap();
+
+        assert_eq!(extract_element_text(td), "text");
+    }
+
+    #[test]
+    fn test_extract_nullable_element() {
+        let sel = Selector::parse("td").unwrap();
+        let tests = [
+            (r"<table><tr><td>  </td></tr></table>", None),
+            (r"<table><tr><td> NULL </td></tr></table>", None),
+            (
+                r"<table><tr><td> text </td></tr></table>",
+                Some("text".to_string()),
+            ),
+        ];
+
+        for (html, expected_value) in tests {
+            let fragment = Html::parse_fragment(html);
+            let td = fragment.select(&sel).next().unwrap();
+            assert_eq!(extract_nullable_element_text(td), expected_value);
+        }
+    }
+
+    #[test]
+    fn test_extract_record() {
+        let sel = data_selector();
+
+        let tests = [
+            (
+                r"<table>
+            <tr>
+                <td> 1 </td>
+                <td> street_name </td>
+                <td> old_street_name </td>
+                <td> municipality </td>
+                <td> settlement </td>
+                <td> settlement_part </td>
+                <td> si_list </td>
+            </tr>
+        </table>",
+                Some(Record {
+                    street_name: "street_name".to_string(),
+                    old_street_name: Some("old_street_name".to_string()),
+                    municipality: "municipality".to_string(),
+                    settlement: "settlement".to_string(),
+                    settlement_part: "settlement_part".to_string(),
+                    si_list: Some("si_list".to_string()),
+                }),
+            ),
+            (
+                r"<table>
+            <tr>
+                <td> 1 </td>
+                <td> street_name </td>
+                <td>  </td>
+                <td> municipality </td>
+                <td> settlement </td>
+                <td> settlement_part </td>
+                <td> NULL </td>
+            </tr>
+        </table>",
+                Some(Record {
+                    street_name: "street_name".to_string(),
+                    old_street_name: None,
+                    municipality: "municipality".to_string(),
+                    settlement: "settlement".to_string(),
+                    settlement_part: "settlement_part".to_string(),
+                    si_list: None,
+                }),
+            ),
+            (
+                r"<table>
+            <tr>
+                <td> 1 </td>
+                <td> street_name </td>
+                <td>  </td>
+                <td> municipality </td>
+                <td> settlement </td>
+                <td> settlement_part </td>
+            </tr>
+        </table>",
+                None,
+            ),
+        ];
+
+        for (html, expected_value) in tests {
+            let document = Html::parse_fragment(html);
+            let tds = document.select(sel);
+            let result = extract_record(tds);
+
+            assert_eq!(result, expected_value)
+        }
+    }
 }
