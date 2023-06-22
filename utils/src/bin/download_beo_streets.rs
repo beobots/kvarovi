@@ -158,7 +158,7 @@ mod tests {
         ];
 
         for (html, maybe_expected_value) in tests {
-            let body = Html::parse_document(&html);
+            let body = Html::parse_document(html);
             let maybe_data = body.select(sel).next();
             if let Some(expected_value) = maybe_expected_value {
                 let data = maybe_data.unwrap();
