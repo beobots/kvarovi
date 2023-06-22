@@ -1,6 +1,6 @@
-use anyhow::{anyhow, bail, Context, Result};
-use futures::future::try_join_all;
-use scraper::{Html, Selector};
+use anyhow::{Context, Result};
+use scraper::element_ref::Select;
+use scraper::{ElementRef, Html, Selector};
 use std::fmt::{Display, Formatter};
 use std::io::{stdout, Write};
 use std::sync::OnceLock;
@@ -8,9 +8,9 @@ use std::sync::OnceLock;
 const URL: &str = "https://zis.beograd.gov.rs/ulicebgdout/ulicebgdout.php?page=";
 const MAX_PAGES: usize = 283;
 
-static TABLE_SELECTOR: OnceLock<Result<Selector>> = OnceLock::new();
+static TABLE_SELECTOR: OnceLock<Selector> = OnceLock::new();
 
-static DATA_SELECTOR: OnceLock<Result<Selector>> = OnceLock::new();
+static DATA_SELECTOR: OnceLock<Selector> = OnceLock::new();
 
 #[derive(Debug)]
 struct Record {
@@ -44,65 +44,52 @@ impl Display for Record {
 }
 
 fn extract_dataset(body: String) -> Result<Vec<Record>> {
-    let table_selector = match TABLE_SELECTOR.get_or_init(|| {
-        Selector::parse("#ulicebgdoutGrid tbody > tr.pg-row")
-            .map_err(|e| anyhow!("failed to initialize table selector: {e}"))
-    }) {
-        Ok(x) => x,
-        Err(e) => bail!(e),
-    };
+    let table_selector = TABLE_SELECTOR
+        .get_or_init(|| Selector::parse("#ulicebgdoutGrid tbody > tr.pg-row").expect("initialize CSS selector"));
 
-    let data_selector = match DATA_SELECTOR.get_or_init(|| {
-        Selector::parse("td:not(:first-child)").map_err(|e| anyhow!("failed to initialize data selector: {e}"))
-    }) {
-        Ok(x) => x,
-        Err(e) => bail!(e),
-    };
+    let data_selector =
+        DATA_SELECTOR.get_or_init(|| Selector::parse("td:not(:first-child)").expect("initialize CSS selector"));
 
     let document = Html::parse_document(&body);
 
     let mut result = Vec::with_capacity(50);
     for row in document.select(table_selector) {
-        let mut data_sel = row.select(data_selector);
-
-        let record = data_sel
-            .next()
-            .and_then(|street_name| {
-                data_sel.next().and_then(|old_street_name| {
-                    data_sel.next().and_then(|municipality| {
-                        data_sel.next().and_then(|settlement| {
-                            data_sel.next().and_then(|settlement_part| {
-                                data_sel.next().map(|si_list| Record {
-                                    street_name: String::from_iter(street_name.text().map(str::trim)),
-                                    old_street_name: {
-                                        let x = String::from_iter(old_street_name.text().map(str::trim));
-                                        match &x[..] {
-                                            "" | "NULL" => None,
-                                            _ => Some(x),
-                                        }
-                                    },
-                                    municipality: String::from_iter(municipality.text().map(str::trim)),
-                                    settlement: String::from_iter(settlement.text().map(str::trim)),
-                                    settlement_part: String::from_iter(settlement_part.text().map(str::trim)),
-                                    si_list: {
-                                        let x = String::from_iter(si_list.text().map(str::trim));
-                                        match &x[..] {
-                                            "" | "NULL" => None,
-                                            _ => Some(x),
-                                        }
-                                    },
-                                })
-                            })
-                        })
-                    })
-                })
-            })
-            .context("failed to extract a row of data")?;
-
+        let data_sel = row.select(data_selector);
+        let record = extract_record(data_sel).context("failed to extract a row of data")?;
         result.push(record)
     }
 
     Ok(result)
+}
+
+fn extract_record(mut data_sel: Select) -> Option<Record> {
+    let street_name = data_sel.next().map(extract_element_text)?;
+    let old_street_name = data_sel.next().map(extract_nullable_element_text)?;
+    let municipality = data_sel.next().map(extract_element_text)?;
+    let settlement = data_sel.next().map(extract_element_text)?;
+    let settlement_part = data_sel.next().map(extract_element_text)?;
+    let si_list = data_sel.next().map(extract_nullable_element_text)?;
+
+    Some(Record {
+        street_name,
+        old_street_name,
+        municipality,
+        settlement,
+        settlement_part,
+        si_list,
+    })
+}
+
+fn extract_nullable_element_text(value: ElementRef) -> Option<String> {
+    let x = extract_element_text(value);
+    match &x[..] {
+        "" | "NULL" => None,
+        _ => Some(x),
+    }
+}
+
+fn extract_element_text(value: ElementRef) -> String {
+    String::from_iter(value.text().map(str::trim))
 }
 
 async fn download_page(page: usize) -> Result<Vec<Record>> {
