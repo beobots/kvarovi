@@ -1,5 +1,6 @@
 [workspace]
 members = [
-    "electricity"
+    "electricity",
+    "utils"
 ]
 resolver = "2"
