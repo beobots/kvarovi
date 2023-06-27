@@ -1,10 +1,12 @@
 //! The module declares structures to hold the address information and
 //! a set of functions to parse the raw data.
 //!
-//! Addressing system in Serbija, seems like, allows buildings without assigned number
-//! (see https://www.politika.rs/sr/clanak/398656/Srbija-bez-b-b-adresa)
+//! Addressing system in Serbija, seems like, allows buildings without assigned
+//! number (see https://www.politika.rs/sr/clanak/398656/Srbija-bez-b-b-adresa)
 //! and they are called BB (Bez Broj or without number).
 #![allow(unused)]
+
+use std::fmt::Display;
 
 use nom::branch::alt;
 use nom::bytes::complete::{tag, tag_no_case, take_until1};
@@ -16,21 +18,21 @@ use nom::sequence::{delimited, pair, separated_pair};
 use nom::{Err, IResult};
 
 #[derive(Eq, PartialEq, Clone, Debug)]
-pub struct BrojNumber<'a> {
+pub struct BrojNumber {
     value: usize,
-    extension: Option<&'a str>,
+    extension: Option<String>,
 }
 
-impl<'a> From<(usize, Option<&'a str>)> for BrojNumber<'a> {
-    fn from((v, e): (usize, Option<&'a str>)) -> Self {
+impl From<(usize, Option<&str>)> for BrojNumber {
+    fn from((v, e): (usize, Option<&str>)) -> Self {
         Self {
             value: v,
-            extension: e,
+            extension: e.map(|s| s.to_owned()),
         }
     }
 }
 
-impl<'a> From<usize> for BrojNumber<'a> {
+impl From<usize> for BrojNumber {
     fn from(v: usize) -> Self {
         Self {
             value: v,
@@ -39,13 +41,22 @@ impl<'a> From<usize> for BrojNumber<'a> {
     }
 }
 
-#[derive(Eq, PartialEq, Clone, Debug)]
-pub struct BrojRange<'a> {
-    from: BrojNumber<'a>,
-    to: BrojNumber<'a>,
+impl Display for BrojNumber {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self.extension {
+            Some(ext) => write!(f, "{}{}", self.value, ext),
+            None => write!(f, "{}", self.value),
+        }
+    }
 }
 
-impl<'a> From<(usize, usize)> for BrojRange<'a> {
+#[derive(Eq, PartialEq, Clone, Debug)]
+pub struct BrojRange {
+    from: BrojNumber,
+    to: BrojNumber,
+}
+
+impl From<(usize, usize)> for BrojRange {
     fn from((from, to): (usize, usize)) -> Self {
         Self {
             from: BrojNumber::from(from),
@@ -54,8 +65,8 @@ impl<'a> From<(usize, usize)> for BrojRange<'a> {
     }
 }
 
-impl<'a> From<((usize, Option<&'a str>), (usize, Option<&'a str>))> for BrojRange<'a> {
-    fn from((from, to): ((usize, Option<&'a str>), (usize, Option<&'a str>))) -> Self {
+impl From<((usize, Option<&str>), (usize, Option<&str>))> for BrojRange {
+    fn from((from, to): ((usize, Option<&str>), (usize, Option<&str>))) -> Self {
         Self {
             from: BrojNumber::from(from),
             to: BrojNumber::from(to),
@@ -63,51 +74,94 @@ impl<'a> From<((usize, Option<&'a str>), (usize, Option<&'a str>))> for BrojRang
     }
 }
 
-impl<'a> From<(BrojNumber<'a>, BrojNumber<'a>)> for BrojRange<'a> {
-    fn from((from, to): (BrojNumber<'a>, BrojNumber<'a>)) -> Self {
+impl From<(BrojNumber, BrojNumber)> for BrojRange {
+    fn from((from, to): (BrojNumber, BrojNumber)) -> Self {
         Self { from, to }
     }
 }
 
-#[derive(Eq, PartialEq, Clone, Debug)]
-pub enum Broj<'a> {
-    Bez,
-    Number(BrojNumber<'a>),
-    Range(BrojRange<'a>),
+impl Display for BrojRange {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}-{}", self.from, self.to)
+    }
 }
 
-impl<'a> From<BrojNumber<'a>> for Broj<'a> {
-    fn from(v: BrojNumber<'a>) -> Self {
+#[derive(Eq, PartialEq, Clone, Debug)]
+pub enum Broj {
+    Bez,
+    Number(BrojNumber),
+    Range(BrojRange),
+}
+
+impl From<BrojNumber> for Broj {
+    fn from(v: BrojNumber) -> Self {
         Broj::Number(v)
     }
 }
 
-impl<'a> From<BrojRange<'a>> for Broj<'a> {
-    fn from(v: BrojRange<'a>) -> Self {
+impl From<BrojRange> for Broj {
+    fn from(v: BrojRange) -> Self {
         Broj::Range(v)
     }
 }
 
-#[derive(Eq, PartialEq, Debug)]
-pub struct AddressRecord<'a> {
-    street: &'a str,
-    numbers: Vec<Broj<'a>>,
-}
-
-impl<'a> AddressRecord<'a> {
-    pub fn new(street: &'a str, numbers: Vec<Broj<'a>>) -> Self {
-        Self { street, numbers }
+impl Display for Broj {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Broj::Bez => write!(f, "BB"),
+            Broj::Number(v) => write!(f, "{}", v),
+            Broj::Range(v) => write!(f, "{}", v),
+        }
     }
 }
 
-impl<'a> From<(&'a str, Vec<Broj<'a>>)> for AddressRecord<'a> {
-    fn from((street, numbers): (&'a str, Vec<Broj<'a>>)) -> Self {
-        Self { street, numbers }
+#[derive(Eq, PartialEq, Debug)]
+pub struct AddressRecord {
+    pub street: String,
+    numbers: Vec<Broj>,
+}
+
+impl AddressRecord {
+    pub fn new(street: &str, numbers: Vec<Broj>) -> Self {
+        Self {
+            street: street.to_owned(),
+            numbers,
+        }
+    }
+}
+
+impl From<(&str, Vec<Broj>)> for AddressRecord {
+    fn from((street, numbers): (&str, Vec<Broj>)) -> Self {
+        Self {
+            street: street.to_owned(),
+            numbers,
+        }
+    }
+}
+
+impl Clone for AddressRecord {
+    fn clone(&self) -> Self {
+        Self {
+            street: self.street.clone(),
+            numbers: self.numbers.clone(),
+        }
+    }
+}
+
+impl Display for AddressRecord {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}:", self.street)?;
+
+        for number in &self.numbers {
+            write!(f, " {}", number)?;
+        }
+
+        Ok(())
     }
 }
 
 /// Parser a regular address number with optional extension letter.
-fn address_number(input: &str) -> IResult<&str, BrojNumber<'_>> {
+fn address_number(input: &str) -> IResult<&str, BrojNumber> {
     let digit_parser = map_res(digit1, |s: &str| s.parse::<usize>());
     let ext_parser = map(
         recognize(pair(alpha0, opt(pair(tag("/"), digit1)))),
@@ -117,13 +171,13 @@ fn address_number(input: &str) -> IResult<&str, BrojNumber<'_>> {
 }
 
 /// Parse a range of addresses
-fn address_number_range(input: &str) -> IResult<&str, BrojRange<'_>> {
+fn address_number_range(input: &str) -> IResult<&str, BrojRange> {
     let parser = separated_pair(address_number, tag("-"), address_number);
     map(parser, BrojRange::from)(input)
 }
 
 /// Parses an address number, a range of addresses or a special BB case.
-fn broj(input: &str) -> IResult<&str, Broj<'_>> {
+fn broj(input: &str) -> IResult<&str, Broj> {
     let bb_parser = value(Broj::Bez, tag_no_case("bb"));
     let number_parser = map(address_number, Broj::from);
     let range_parser = map(address_number_range, Broj::from);
@@ -132,7 +186,7 @@ fn broj(input: &str) -> IResult<&str, Broj<'_>> {
 }
 
 /// Recognizes a list of addresses, ranges of addresses or special BB cases.
-fn broj_list(input: &str) -> IResult<&str, Vec<Broj<'_>>> {
+fn broj_list(input: &str) -> IResult<&str, Vec<Broj>> {
     let parser = separated_list1(tag(","), broj);
     delimited(
         multispace0,
@@ -143,7 +197,7 @@ fn broj_list(input: &str) -> IResult<&str, Vec<Broj<'_>>> {
 }
 
 /// Recognizes a pair of an address and the list of addresses' numbers.
-fn address_number_pair(input: &str) -> IResult<&str, AddressRecord<'_>> {
+fn address_number_pair(input: &str) -> IResult<&str, AddressRecord> {
     let take_pp = take_until1(":");
     map(separated_pair(take_pp, tag(":"), broj_list), |(a, b)| {
         AddressRecord::new(a.trim(), b)
@@ -151,19 +205,18 @@ fn address_number_pair(input: &str) -> IResult<&str, AddressRecord<'_>> {
 }
 
 /// Parse addresses info (row).
-fn addresses(input: &str) -> IResult<&str, Vec<AddressRecord<'_>>> {
+fn addresses(input: &str) -> IResult<&str, Vec<AddressRecord>> {
     many1(address_number_pair)(input)
 }
 
 #[derive(Eq, PartialEq, Debug)]
-#[repr(transparent)]
-pub struct Addresses<'a> {
-    items: Vec<AddressRecord<'a>>,
+pub struct Addresses {
+    items: Vec<AddressRecord>,
 }
 
-impl<'a> Addresses<'a> {
+impl Addresses {
     #[inline(always)]
-    pub fn parse(input: &'a str) -> Result<Addresses<'a>, Err<Error<&str>>> {
+    pub fn parse(input: &str) -> Result<Addresses, Err<Error<&str>>> {
         match addresses(input) {
             Ok((_, items)) => Ok(Self { items }),
             Err(err) => Err(err),
@@ -171,12 +224,30 @@ impl<'a> Addresses<'a> {
     }
 }
 
-impl<'a> IntoIterator for Addresses<'a> {
-    type Item = <Vec<AddressRecord<'a>> as IntoIterator>::Item;
-    type IntoIter = <Vec<AddressRecord<'a>> as IntoIterator>::IntoIter;
+impl IntoIterator for Addresses {
+    type Item = <Vec<AddressRecord> as IntoIterator>::Item;
+    type IntoIter = <Vec<AddressRecord> as IntoIterator>::IntoIter;
 
     fn into_iter(self) -> Self::IntoIter {
         self.items.into_iter()
+    }
+}
+
+impl Clone for Addresses {
+    fn clone(&self) -> Self {
+        Self {
+            items: self.items.clone(),
+        }
+    }
+}
+
+impl Display for Addresses {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for item in &self.items {
+            writeln!(f, "{}", item)?;
+        }
+
+        Ok(())
     }
 }
 
