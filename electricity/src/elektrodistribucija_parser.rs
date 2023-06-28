@@ -1,8 +1,22 @@
+use std::sync::OnceLock;
+
+use anyhow::{Context, Ok, Result};
 use scraper::{ElementRef, Html, Selector};
+
+static TABLE_SELECTOR: OnceLock<Selector> = OnceLock::new();
+
+fn table_selector() -> &'static Selector {
+    TABLE_SELECTOR.get_or_init(|| Selector::parse("table").expect("failed to initialize table selector"))
+}
+
+// fn header_selector() -> &'static Selector {
+//     TABLE_SELECTOR.get_or_init(|| Selector::parse("tbody > tr > td >
+// b").expect("failed to initialize header selector")) }
 
 pub fn get_page_header(page_html: &str) -> String {
     let header_table = get_header_table_html(page_html);
-    let header_selector = Selector::parse("tbody > tr > td > b").unwrap();
+    // let header_selector = header_selector();
+    let header_selector = Selector::parse("tbody > tr > td > b").expect("failed to initialize header selector");
     let header: String = header_table
         .select(&header_selector)
         .next()
@@ -17,37 +31,30 @@ pub fn get_page_header(page_html: &str) -> String {
 
 pub fn get_header_table_html(page_html: &str) -> Html {
     let document = Html::parse_document(page_html);
-    let table_selector = Selector::parse("table").unwrap();
-    let tables = document
-        .select(&table_selector)
-        .collect::<Vec<ElementRef>>();
+    let table_selector = table_selector();
+    let tables = document.select(table_selector).collect::<Vec<ElementRef>>();
 
     Html::parse_fragment(&tables.get(0).unwrap().html())
 }
 
 pub fn get_content_table_html(page_html: &str) -> Html {
     let document = Html::parse_document(page_html);
-    let table_selector = Selector::parse("table").unwrap();
-    let tables = document
-        .select(&table_selector)
-        .collect::<Vec<ElementRef>>();
+    let table_selector = table_selector();
+    let tables = document.select(table_selector).collect::<Vec<ElementRef>>();
 
     Html::parse_fragment(&tables.get(1).unwrap().html())
 }
 
-pub fn get_page_date(page_html: &str) -> String {
+pub fn get_page_date(page_html: &str) -> Result<String> {
     let header = get_page_header(page_html);
     let date = header
-        .split(' ')
+        .split(':')
         .last()
-        .unwrap()
-        .to_owned()
-        .split('.')
-        .filter(|&str| !str.is_empty())
-        .collect::<Vec<_>>()
-        .join("-");
+        .map(str::trim)
+        .map(ToOwned::to_owned)
+        .context("failed to extract date from header")?;
 
-    date
+    Ok(date)
 }
 
 #[cfg(test)]
@@ -112,7 +119,7 @@ mod tests {
 
     #[test]
     fn test_get_page_date_extracts_date() {
-        let date = get_page_date(TEST_PAGE_HTML);
+        let date = get_page_date(TEST_PAGE_HTML).unwrap();
 
         assert_eq!(date, "2021-01-01");
     }

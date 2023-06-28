@@ -1,12 +1,15 @@
 extern crate reqwest;
 
-use anyhow::{anyhow, Ok, Result};
+use addresses::AddressRecord;
+use anyhow::{anyhow, Context, Ok, Result};
 use aws_sdk_dynamodb::{types::AttributeValue, Client};
 use chrono::NaiveDate;
 use db::create_table;
 use scraper::Selector;
 use std::collections::hash_map::DefaultHasher;
+use std::fmt::Display;
 use std::hash::{Hash, Hasher};
+use std::sync::OnceLock;
 use uuid::Uuid;
 
 mod addresses;
@@ -18,14 +21,59 @@ pub mod translit;
 
 use elektrodistribucija_parser::{get_content_table_html, get_page_date, get_page_header};
 
-const RAW_DATA_TABLE_NAME: &str = "electricity_failures_raw";
+use crate::translit::Translit;
 
-struct TableRowData {
+const RAW_DATA_TABLE_NAME: &str = "electricity_failures_raw";
+const DATA_TABLE_NAME: &str = "electricity_failures";
+
+static TR_SELECTOR: OnceLock<Selector> = OnceLock::new();
+static TD_SELECTOR: OnceLock<Selector> = OnceLock::new();
+
+fn tr_selector() -> &'static Selector {
+    TR_SELECTOR.get_or_init(|| Selector::parse("tr").expect("failed to initialize tr selector"))
+}
+
+fn td_selector() -> &'static Selector {
+    TD_SELECTOR.get_or_init(|| Selector::parse("td").expect("failed to initialize td selector"))
+}
+
+#[derive(Debug, Clone)]
+pub struct ElectricityFailuresData {
     city: String,
     region: String,
     time: String,
-    street: String,
     date: String,
+    addresses: addresses::Addresses,
+}
+
+impl Display for ElectricityFailuresData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{{ city: {}, region: {}, time: {}, date: {}, addresses: {} }}",
+            self.city, self.region, self.time, self.date, self.addresses
+        )
+    }
+}
+
+#[derive(Debug)]
+pub struct ElectricityFailuresRawData {
+    id: String,
+    date: String,
+    url: String,
+    html: String,
+    hash: String,
+    version: i32,
+}
+
+impl Display for ElectricityFailuresRawData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{{ id: {}, date: {}, url: {}, html: {}, hash: {}, version: {} }}",
+            self.id, self.date, self.url, self.html, self.hash, self.version
+        )
+    }
 }
 
 async fn fetch_page(url: &str) -> Result<String> {
@@ -70,7 +118,7 @@ fn format_date(date: String) -> Result<String> {
 
 async fn add_electricity_failure_raw_item(client: &Client, html: &str, page: &str) -> Result<()> {
     let id = Uuid::new_v4().to_string();
-    let date = format_date(get_page_date(html))?;
+    let date = get_page_date(html).and_then(format_date)?;
     let page = page.to_owned();
     let hash = {
         let mut hasher = DefaultHasher::new();
@@ -135,10 +183,9 @@ async fn find_last_electricity_failure_raw_version(
         items.iter().for_each(|item| {
             let version = item
                 .get("version")
-                .unwrap()
-                .as_n()
-                .unwrap()
-                .parse::<i32>()
+                .and_then(|av| av.as_n().ok())
+                .map(|n| n.parse::<i32>().expect("failed to parse version"))
+                .context("version is missing")
                 .unwrap();
             let hash = item.get("hash").unwrap().as_s().unwrap().to_owned();
             if version > last_version {
@@ -151,61 +198,34 @@ async fn find_last_electricity_failure_raw_version(
     Ok((last_version, last_version_hash))
 }
 
-// TODO theses functions are for parsing html to structured data
+pub async fn parse_and_save_raw_data(client: &Client, id: &str) -> Result<()> {
+    let raw_data = find_electricity_failure_raw_data_by_id(client, id).await?;
+    let data = parse_raw_data_to_data(&raw_data)?;
 
-#[allow(dead_code)]
-async fn find_electricity_failure_item(client: &Client, item: &TableRowData) -> Result<Option<String>> {
-    let city_av = AttributeValue::S(item.city.to_owned());
-    let region_av = AttributeValue::S(item.region.to_owned());
-    let time_av = AttributeValue::S(item.time.to_owned());
-    let date_av = AttributeValue::S(item.date.to_owned());
+    create_table(client, DATA_TABLE_NAME, "id").await?;
 
-    let results = client
-        .scan()
-        .table_name("electricity_failures")
-        .filter_expression("#city = :city and #region = :region and #time = :time and #date = :date")
-        .expression_attribute_names("#city", "city")
-        .expression_attribute_names("#region", "region")
-        .expression_attribute_names("#time", "time")
-        .expression_attribute_names("#date", "date")
-        .expression_attribute_values(":city", city_av)
-        .expression_attribute_values(":region", region_av)
-        .expression_attribute_values(":time", time_av)
-        .expression_attribute_values(":date", date_av)
-        .send()
-        .await?;
-
-    if let Some(items) = results.items() {
-        let item = items.get(0);
-
-        if let Some(attributes) = item {
-            return Ok(Some(
-                attributes
-                    .get("id")
-                    .cloned()
-                    .unwrap()
-                    .as_s()
-                    .unwrap()
-                    .to_owned(),
-            ));
-        }
+    for d in data {
+        save_electricity_failure_data(client, &d).await?;
     }
 
-    Ok(None)
+    Ok(())
 }
 
-#[allow(dead_code)]
-async fn add_electricity_failure_item(client: &Client, item: &TableRowData) -> Result<()> {
+async fn add_electricity_failure_record(
+    client: &Client,
+    data: &ElectricityFailuresData,
+    record: &AddressRecord,
+) -> Result<()> {
     let id = Uuid::new_v4().to_string();
-    let city_av = AttributeValue::S(item.city.to_owned());
-    let region_av = AttributeValue::S(item.region.to_owned());
-    let time_av = AttributeValue::S(item.time.to_owned());
-    let street_av = AttributeValue::S(item.street.to_owned());
-    let date_av = AttributeValue::S(item.date.to_owned());
+    let city_av = AttributeValue::S(data.city.to_owned());
+    let region_av = AttributeValue::S(data.region.to_owned());
+    let time_av = AttributeValue::S(data.time.to_owned());
+    let street_av = AttributeValue::S(record.street.to_owned());
+    let date_av = AttributeValue::S(data.date.to_owned());
 
     let request = client
         .put_item()
-        .table_name("electricity_failures")
+        .table_name(DATA_TABLE_NAME)
         .item("id", AttributeValue::S(id))
         .item("city", city_av)
         .item("region", region_av)
@@ -218,8 +238,81 @@ async fn add_electricity_failure_item(client: &Client, item: &TableRowData) -> R
     Ok(())
 }
 
-#[allow(dead_code)]
-fn parse_page_to_rows(page_html: String) -> Result<Vec<TableRowData>> {
+pub async fn save_electricity_failure_data(client: &Client, data: &ElectricityFailuresData) -> Result<()> {
+    let addresses = data.addresses.clone();
+
+    for address in addresses.into_iter() {
+        add_electricity_failure_record(client, data, &address).await?;
+    }
+
+    Ok(())
+}
+
+async fn find_electricity_failure_raw_data_by_id(client: &Client, id: &str) -> Result<ElectricityFailuresRawData> {
+    let id_av = AttributeValue::S(id.to_owned());
+
+    let results = client
+        .scan()
+        .table_name(RAW_DATA_TABLE_NAME)
+        .filter_expression("#id = :id")
+        .expression_attribute_names("#id", "id")
+        .expression_attribute_values(":id", id_av)
+        .send()
+        .await?;
+
+    let mut item = None;
+
+    if let Some(items) = results.items() {
+        item = items.get(0);
+    }
+
+    if let Some(attributes) = item {
+        let id = attributes
+            .get("id")
+            .and_then(|av| av.as_s().ok())
+            .map(ToOwned::to_owned)
+            .context("id is missing")?;
+        let date = attributes
+            .get("date")
+            .and_then(|av| av.as_s().ok())
+            .map(ToOwned::to_owned)
+            .context("date is missing")?;
+        let url = attributes
+            .get("url")
+            .and_then(|av| av.as_s().ok())
+            .map(ToOwned::to_owned)
+            .context("url is missing")?;
+        let html = attributes
+            .get("html")
+            .and_then(|av| av.as_s().ok())
+            .map(ToOwned::to_owned)
+            .context("html is missing")?;
+        let hash = attributes
+            .get("hash")
+            .and_then(|av| av.as_s().ok())
+            .map(ToOwned::to_owned)
+            .context("hash is missing")?;
+        let version = attributes
+            .get("version")
+            .and_then(|av| av.as_n().ok())
+            .map(|n| n.parse::<i32>().expect("failed to parse version"))
+            .context("version is missing")?;
+
+        return Ok(ElectricityFailuresRawData {
+            id,
+            date,
+            url,
+            html,
+            hash,
+            version,
+        });
+    }
+
+    Err(anyhow!("Item not found"))
+}
+
+fn parse_raw_data_to_data(data: &ElectricityFailuresRawData) -> Result<Vec<ElectricityFailuresData>> {
+    let page_html = data.html.to_owned();
     let header: String = get_page_header(&page_html);
     let date = header
         .split(' ')
@@ -238,14 +331,14 @@ fn parse_page_to_rows(page_html: String) -> Result<Vec<TableRowData>> {
         .to_string();
 
     let table = get_content_table_html(&page_html);
-    let tr_selector = Selector::parse("tr").unwrap();
-    let td_selector = Selector::parse("td").unwrap();
+    let tr_selector = tr_selector();
+    let td_selector = td_selector();
 
-    let mut table_rows: Vec<TableRowData> = vec![];
+    let mut table_rows: Vec<ElectricityFailuresData> = vec![];
 
-    let rows = table.select(&tr_selector).collect::<Vec<_>>();
+    let rows = table.select(tr_selector).collect::<Vec<_>>();
     let heading_row = rows.get(0).ok_or(anyhow!("Heading row is missing"))?;
-    let heading_td = heading_row.select(&td_selector);
+    let heading_td = heading_row.select(td_selector);
 
     let street_index = heading_td
         .clone()
@@ -272,37 +365,41 @@ fn parse_page_to_rows(page_html: String) -> Result<Vec<TableRowData>> {
         })
         .unwrap();
 
-    for tr_element in &rows[1..] {
-        let td_elements = tr_element.select(&td_selector).collect::<Vec<_>>();
-        let region: String = td_elements
-            .get(region_index)
-            .unwrap()
-            .text()
-            .collect::<Vec<_>>()
-            .into_iter()
-            .collect();
-        let time: String = td_elements
-            .get(time_index)
-            .unwrap()
-            .text()
-            .collect::<Vec<_>>()
-            .into_iter()
-            .collect();
-        let street: String = td_elements
-            .get(street_index)
-            .unwrap()
-            .text()
-            .collect::<Vec<_>>()
-            .into_iter()
-            .collect();
+    for row in rows.iter().skip(1) {
+        let cells = row.select(td_selector).collect::<Vec<_>>();
 
-        table_rows.push(TableRowData {
+        let region = cells
+            .get(region_index)
+            .ok_or(anyhow!("Cell is missing"))?
+            .text()
+            .collect::<Vec<_>>()
+            .into_iter()
+            .collect::<String>();
+        let time = cells
+            .get(time_index)
+            .ok_or(anyhow!("Cell is missing"))?
+            .text()
+            .collect::<Vec<_>>()
+            .into_iter()
+            .collect::<String>();
+        let street = cells
+            .get(street_index)
+            .ok_or(anyhow!("Cell is missing"))?
+            .text()
+            .collect::<Vec<_>>()
+            .into_iter()
+            .collect::<String>();
+        let translited_street = street.translit();
+
+        let addresses = addresses::Addresses::parse(&translited_street).map_err(|e| e.to_owned())?;
+
+        table_rows.push(ElectricityFailuresData {
+            city: city.to_owned(),
             region,
             time,
-            street,
-            city: city.clone(),
-            date: format_date(date.clone())?,
-        })
+            date: format_date(date.to_owned())?,
+            addresses,
+        });
     }
 
     Ok(table_rows)
@@ -314,43 +411,49 @@ mod tests {
 
     #[test]
     fn test_page_page_to_rows() {
-        let page_html = r#"
-            <html>
-                <head>
-                    <title>Test</title>
-                </head>
-                <body>
-                    <table>
-                        <tbody>
-                            <tr>
-                                <td><b>Скопје - Центар - 01.01.2021</b></td>
-                            </tr>
-                        </tbody>
-                    </table>
-                    <table>
-                        <tbody>
-                            <tr>
-                                <td>Општина</td>
-                                <td>Време</td>
-                                <td>Улице</td>
-                            </tr>
-                            <tr>
-                                <td>Центар</td>
-                                <td>08:00 - 16:00</td>
-                                <td>Бул. Климент Охридски</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </body>
-            </html>
-        "#;
-
-        let rows = parse_page_to_rows(page_html.to_owned()).unwrap();
+        let data = ElectricityFailuresRawData {
+            id: String::from("id"),
+            date: String::from("01-01-2021"),
+            url: String::from("url"),
+            html: String::from(
+                r#"
+                <html>
+                    <body>
+                        <table>
+                            <tbody>
+                                <tr>
+                                    <td>
+                                        <b>Скопје - Центар - 01.01.2021</b>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <table>
+                            <tbody>
+                                <tr>
+                                    <td>Општина</td>
+                                    <td>Време</td>
+                                    <td>Улице</td>
+                                </tr>
+                                <tr>
+                                    <td>Центар</td>
+                                    <td>08:00 - 16:00</td>
+                                    <td>Бул. Климент Охридски: 43-46</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </body>
+                </html>
+            "#,
+            ),
+            hash: String::from("hash"),
+            version: 1,
+        };
+        let rows = parse_raw_data_to_data(&data).unwrap();
 
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].city, "Скопје");
         assert_eq!(rows[0].region, "Центар");
-        assert_eq!(rows[0].street, "Бул. Климент Охридски");
         assert_eq!(rows[0].time, "08:00 - 16:00");
         assert_eq!(rows[0].date, "01-01-2021");
     }
