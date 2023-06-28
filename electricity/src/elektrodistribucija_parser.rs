@@ -1,5 +1,6 @@
 use std::sync::OnceLock;
 
+use anyhow::{Context, Ok, Result};
 use scraper::{ElementRef, Html, Selector};
 
 static TABLE_SELECTOR: OnceLock<Selector> = OnceLock::new();
@@ -44,19 +45,16 @@ pub fn get_content_table_html(page_html: &str) -> Html {
     Html::parse_fragment(&tables.get(1).unwrap().html())
 }
 
-pub fn get_page_date(page_html: &str) -> String {
+pub fn get_page_date(page_html: &str) -> Result<String> {
     let header = get_page_header(page_html);
     let date = header
-        .split(' ')
+        .split(':')
         .last()
-        .unwrap()
-        .to_owned()
-        .split('.')
-        .filter(|&str| !str.is_empty())
-        .collect::<Vec<_>>()
-        .join("-");
+        .map(str::trim)
+        .map(ToOwned::to_owned)
+        .context("failed to extract date from header")?;
 
-    date
+    Ok(date)
 }
 
 #[cfg(test)]
@@ -121,7 +119,7 @@ mod tests {
 
     #[test]
     fn test_get_page_date_extracts_date() {
-        let date = get_page_date(TEST_PAGE_HTML);
+        let date = get_page_date(TEST_PAGE_HTML).unwrap();
 
         assert_eq!(date, "2021-01-01");
     }

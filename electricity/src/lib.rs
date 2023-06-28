@@ -118,7 +118,7 @@ fn format_date(date: String) -> Result<String> {
 
 async fn add_electricity_failure_raw_item(client: &Client, html: &str, page: &str) -> Result<()> {
     let id = Uuid::new_v4().to_string();
-    let date = format_date(get_page_date(html))?;
+    let date = get_page_date(html).and_then(format_date)?;
     let page = page.to_owned();
     let hash = {
         let mut hasher = DefaultHasher::new();
