@@ -1,7 +1,5 @@
-extern crate reqwest;
-
 use addresses::AddressRecord;
-use anyhow::{anyhow, Context, Ok, Result};
+use anyhow::{anyhow, Context as _, Ok, Result};
 use aws_sdk_dynamodb::{types::AttributeValue, Client};
 use chrono::NaiveDate;
 use db::create_table;
