@@ -5,28 +5,26 @@ use scraper::{ElementRef, Html, Selector};
 
 static TABLE_SELECTOR: OnceLock<Selector> = OnceLock::new();
 
+static HEADER_SELECTOR: OnceLock<Selector> = OnceLock::new();
+
 fn table_selector() -> &'static Selector {
-    TABLE_SELECTOR.get_or_init(|| Selector::parse("table").expect("failed to initialize table selector"))
+    TABLE_SELECTOR.get_or_init(|| Selector::parse("table").expect("table selector initialized"))
 }
 
-// fn header_selector() -> &'static Selector {
-//     TABLE_SELECTOR.get_or_init(|| Selector::parse("tbody > tr > td >
-// b").expect("failed to initialize header selector")) }
+fn header_selector() -> &'static Selector {
+    HEADER_SELECTOR.get_or_init(|| Selector::parse("tbody > tr > td > b").expect("header selector initialized"))
+}
 
 pub fn get_page_header(page_html: &str) -> String {
     let header_table = get_header_table_html(page_html);
-    // let header_selector = header_selector();
-    let header_selector = Selector::parse("tbody > tr > td > b").expect("failed to initialize header selector");
-    let header: String = header_table
-        .select(&header_selector)
-        .next()
-        .unwrap()
-        .text()
-        .collect::<Vec<_>>()
-        .into_iter()
-        .collect();
-
-    header
+    String::from_iter(
+        header_table
+            .select(header_selector())
+            .next()
+            .into_iter()
+            .flat_map(|it| it.text())
+            .map(str::trim),
+    )
 }
 
 pub fn get_header_table_html(page_html: &str) -> Html {
