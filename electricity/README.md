@@ -117,6 +117,10 @@ aws iam detach-role-policy --role-name electricity_lambda_execution_role --polic
 aws iam delete-policy --policy-arn $POLICY_ARN
 aws iam delete-role --role-name electricity_lambda_execution_role
 
+# nuke dynamodb
+aws dynamodb delete-table --table-name electricity_failures_raw
+aws dynamodb delete-table --table-name electricity_failures
+
 ```
 
 
