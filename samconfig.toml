@@ -5,7 +5,7 @@ version = 0.1
 [default]
 [default.global.parameters]
 stack_name = "beobots"
-region = "eu-central-1"
+region = "us-east-1"
 
 [default.build.parameters]
 beta_features = true

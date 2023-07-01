@@ -3,3 +3,5 @@ target
 .idea/
 .env
 download.csv
+.vscode
+rust-toolchain.toml

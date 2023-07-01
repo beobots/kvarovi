@@ -93,7 +93,7 @@ pub async fn collect_data(db_client: &Client, pages: &[String]) -> Result<()> {
 
     let results = futures::future::join_all(requests).await;
 
-    let _ = create_table(db_client, RAW_DATA_TABLE_NAME, "id").await;
+    create_table(db_client, RAW_DATA_TABLE_NAME, "id").await?;
 
     for result in results {
         let (page, html) = result.unwrap().await?;

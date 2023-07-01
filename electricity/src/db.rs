@@ -1,24 +1,16 @@
 use anyhow::{Ok, Result};
 use aws_sdk_dynamodb::{
-    config::{Config, Region},
+    config::{Config},
     types::{AttributeDefinition, KeySchemaElement, KeyType, ProvisionedThroughput, ScalarAttributeType},
     Client,
 };
-use std::env;
 
 async fn make_config() -> Result<Config> {
-    let database_url = env::var("DATABASE_URL").unwrap_or("http://localhost:8000".to_owned());
-    let profile_name = env::var("AWS_PROFILE")?;
-    let region = env::var("AWS_REGION").unwrap_or("eu-central-1".to_owned());
-
     let config = aws_config::from_env()
-        .profile_name(&profile_name)
-        .region(Region::new(region))
         .load()
         .await;
 
     Ok(aws_sdk_dynamodb::config::Builder::from(&config)
-        .endpoint_url(&database_url)
         .build())
 }
 
