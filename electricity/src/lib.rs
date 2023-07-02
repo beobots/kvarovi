@@ -2,7 +2,6 @@ use addresses::AddressRecord;
 use anyhow::{anyhow, Context as _, Ok, Result};
 use aws_sdk_dynamodb::{types::AttributeValue, Client};
 use chrono::NaiveDate;
-use db::create_table;
 use scraper::Selector;
 use std::collections::hash_map::DefaultHasher;
 use std::fmt::Display;
@@ -20,9 +19,6 @@ pub mod translit;
 use elektrodistribucija_parser::{get_content_table_html, get_page_date, get_page_header};
 
 use crate::translit::Translit;
-
-const RAW_DATA_TABLE_NAME: &str = "electricity_failures_raw";
-const DATA_TABLE_NAME: &str = "electricity_failures";
 
 static TR_SELECTOR: OnceLock<Selector> = OnceLock::new();
 static TD_SELECTOR: OnceLock<Selector> = OnceLock::new();
@@ -79,7 +75,7 @@ async fn fetch_page(url: &str) -> Result<String> {
     Ok(response.text().await?)
 }
 
-pub async fn collect_data(db_client: &Client, pages: &[String]) -> Result<()> {
+pub async fn collect_data(db_client: &Client, table_name: &str, pages: &[String]) -> Result<()> {
     let requests = pages.iter().map(|page| {
         let p = page.clone();
         tokio::task::spawn_blocking(move || {
@@ -93,13 +89,10 @@ pub async fn collect_data(db_client: &Client, pages: &[String]) -> Result<()> {
 
     let results = futures::future::join_all(requests).await;
 
-// TODO move this func out of here and also read the table name from env 
-    create_table(db_client, RAW_DATA_TABLE_NAME, "id").await?;
-
     for result in results {
         let (page, html) = result.unwrap().await?;
 
-        let _ = add_electricity_failure_raw_item(db_client, &html?, &page).await;
+        let _ = add_electricity_failure_raw_item(db_client, table_name, &html?, &page).await;
     }
 
     Ok(())
@@ -115,7 +108,7 @@ fn format_date(date: String) -> Result<String> {
     Ok(naive_date?.format("%d-%m-%Y").to_string())
 }
 
-async fn add_electricity_failure_raw_item(client: &Client, html: &str, page: &str) -> Result<()> {
+async fn add_electricity_failure_raw_item(client: &Client, table_name: &str, html: &str, page: &str) -> Result<()> {
     let id = Uuid::new_v4().to_string();
     let date = get_page_date(html).and_then(format_date)?;
     let page = page.to_owned();
@@ -126,7 +119,7 @@ async fn add_electricity_failure_raw_item(client: &Client, html: &str, page: &st
     };
 
     let (last_version, last_version_hash) =
-        find_last_electricity_failure_raw_version(client, page.to_owned(), date.to_owned()).await?;
+        find_last_electricity_failure_raw_version(client, table_name, page.to_owned(), date.to_owned()).await?;
 
     if let Some(last_version_hash) = last_version_hash {
         if last_version_hash == hash {
@@ -143,7 +136,7 @@ async fn add_electricity_failure_raw_item(client: &Client, html: &str, page: &st
 
     let request = client
         .put_item()
-        .table_name(RAW_DATA_TABLE_NAME)
+        .table_name(table_name)
         .item("id", id_av)
         .item("date", date_av)
         .item("url", page_av)
@@ -158,6 +151,7 @@ async fn add_electricity_failure_raw_item(client: &Client, html: &str, page: &st
 
 async fn find_last_electricity_failure_raw_version(
     client: &Client,
+    table_name: &str,
     url: String,
     date: String,
 ) -> Result<(i32, Option<String>)> {
@@ -166,7 +160,7 @@ async fn find_last_electricity_failure_raw_version(
 
     let results = client
         .scan()
-        .table_name(RAW_DATA_TABLE_NAME)
+        .table_name(table_name)
         .filter_expression("#url = :url and #date = :date")
         .expression_attribute_names("#url", "url")
         .expression_attribute_names("#date", "date")
@@ -197,14 +191,17 @@ async fn find_last_electricity_failure_raw_version(
     Ok((last_version, last_version_hash))
 }
 
-pub async fn parse_and_save_raw_data(client: &Client, id: &str) -> Result<()> {
-    let raw_data = find_electricity_failure_raw_data_by_id(client, id).await?;
+pub async fn parse_and_save_raw_data(
+    client: &Client,
+    raw_data_table_name: &str,
+    data_table_name: &str,
+    id: &str,
+) -> Result<()> {
+    let raw_data = find_electricity_failure_raw_data_by_id(client, raw_data_table_name, id).await?;
     let data = parse_raw_data_to_data(&raw_data)?;
 
-    create_table(client, DATA_TABLE_NAME, "id").await?;
-
     for d in data {
-        save_electricity_failure_data(client, &d).await?;
+        save_electricity_failure_data(client, data_table_name, &d).await?;
     }
 
     Ok(())
@@ -212,6 +209,7 @@ pub async fn parse_and_save_raw_data(client: &Client, id: &str) -> Result<()> {
 
 async fn add_electricity_failure_record(
     client: &Client,
+    table_name: &str,
     data: &ElectricityFailuresData,
     record: &AddressRecord,
 ) -> Result<()> {
@@ -224,7 +222,7 @@ async fn add_electricity_failure_record(
 
     let request = client
         .put_item()
-        .table_name(DATA_TABLE_NAME)
+        .table_name(table_name)
         .item("id", AttributeValue::S(id))
         .item("city", city_av)
         .item("region", region_av)
@@ -237,22 +235,30 @@ async fn add_electricity_failure_record(
     Ok(())
 }
 
-pub async fn save_electricity_failure_data(client: &Client, data: &ElectricityFailuresData) -> Result<()> {
+pub async fn save_electricity_failure_data(
+    client: &Client,
+    table_name: &str,
+    data: &ElectricityFailuresData,
+) -> Result<()> {
     let addresses = data.addresses.clone();
 
     for address in addresses.into_iter() {
-        add_electricity_failure_record(client, data, &address).await?;
+        add_electricity_failure_record(client, table_name, data, &address).await?;
     }
 
     Ok(())
 }
 
-async fn find_electricity_failure_raw_data_by_id(client: &Client, id: &str) -> Result<ElectricityFailuresRawData> {
+async fn find_electricity_failure_raw_data_by_id(
+    client: &Client,
+    table_name: &str,
+    id: &str,
+) -> Result<ElectricityFailuresRawData> {
     let id_av = AttributeValue::S(id.to_owned());
 
     let results = client
         .scan()
-        .table_name(RAW_DATA_TABLE_NAME)
+        .table_name(table_name)
         .filter_expression("#id = :id")
         .expression_attribute_names("#id", "id")
         .expression_attribute_values(":id", id_av)

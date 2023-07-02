@@ -40,7 +40,7 @@ Resources:
       Policies:
         - DynamoDBWritePolicy:
             TableName: !Ref Table
-        - Version: '2012-10-17' # Version of IAM policy language
+        - Version: '2012-10-17'
           Statement:
             - Effect: Allow
               Action:

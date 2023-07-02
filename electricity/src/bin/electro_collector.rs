@@ -1,5 +1,7 @@
 use anyhow::{Ok, Result};
 
+use std::env;
+
 use lambda_runtime::{service_fn, LambdaEvent};
 
 use serde_json::Value;
@@ -30,6 +32,10 @@ async fn main() -> Result<()> {
 
 pub(crate) async fn my_handler(_: LambdaEvent<Value>) -> Result<()> {
     let db_client = init_client().await?;
+
+    let raw_data_table_name =
+        env::var("RAW_DATA_TABLE_NAME").expect("Environment variable 'RAW_DATA_TABLE_NAME' not set.");
+
     let pages = vec![
         String::from("https://elektrodistribucija.rs/planirana-iskljucenja-beograd/Dan_0_Iskljucenja.htm"),
         String::from("https://elektrodistribucija.rs/planirana-iskljucenja-beograd/Dan_1_Iskljucenja.htm"),
@@ -40,7 +46,7 @@ pub(crate) async fn my_handler(_: LambdaEvent<Value>) -> Result<()> {
         //     String::from("https://elektrodistribucija.rs/planirana-iskljucenja-srbija/NoviSad_Dan_2_Iskljucenja.htm"),
         //     String::from("https://elektrodistribucija.rs/planirana-iskljucenja-srbija/NoviSad_Dan_3_Iskljucenja.htm"),
     ];
-    electricity::collect_data(&db_client, &pages).await?;
+    electricity::collect_data(&db_client, &raw_data_table_name, &pages).await?;
 
     Ok(())
 }
