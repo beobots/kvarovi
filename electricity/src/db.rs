@@ -1,17 +1,14 @@
 use anyhow::{Ok, Result};
 use aws_sdk_dynamodb::{
-    config::{Config},
+    config::Config,
     types::{AttributeDefinition, KeySchemaElement, KeyType, ProvisionedThroughput, ScalarAttributeType},
     Client,
 };
 
 async fn make_config() -> Result<Config> {
-    let config = aws_config::from_env()
-        .load()
-        .await;
+    let config = aws_config::from_env().load().await;
 
-    Ok(aws_sdk_dynamodb::config::Builder::from(&config)
-        .build())
+    Ok(aws_sdk_dynamodb::config::Builder::from(&config).build())
 }
 
 pub async fn init_client() -> Result<Client> {

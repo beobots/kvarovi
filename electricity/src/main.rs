@@ -14,7 +14,7 @@ use electricity::db::init_client;
 #[tokio::main]
 async fn main() -> Result<()> {
     dotenv().expect(".env file not found");
-    
+
     let db_client = init_client().await?;
     let pages = vec![
         String::from("https://elektrodistribucija.rs/planirana-iskljucenja-beograd/Dan_0_Iskljucenja.htm"),
