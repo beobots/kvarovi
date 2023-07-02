@@ -1,4 +1,4 @@
-AWSTemplateFormatVersion: '2010-09-09'
+AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
 Description: >
   Beograd Telegram Bots
@@ -21,7 +21,7 @@ Resources:
     Metadata:
       BuildMethod: rust-cargolambda
       BuildProperties:
-        Binary: sample
+        Binary: electricity
       BuildArchitecture: x86_64
     Properties:
       CodeUri: ./
