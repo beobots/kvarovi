@@ -107,7 +107,8 @@ async fn download_page(page: usize) -> Result<Vec<Record>> {
 /// download_beo_streets | tee download.csv && sort download.csv | uniq | tr '[:upper:]' '[:lower:]' > beograd_streets.csv
 /// ```
 ///
-/// Pages are downloaded one after another, because the the web server cannot handle many connection simultaneously.
+/// Pages are downloaded one after another, because the the web server cannot
+/// handle many connection simultaneously.
 #[tokio::main]
 async fn main() -> Result<()> {
     let mut cout = stdout().lock();
