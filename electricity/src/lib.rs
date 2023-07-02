@@ -93,6 +93,7 @@ pub async fn collect_data(db_client: &Client, pages: &[String]) -> Result<()> {
 
     let results = futures::future::join_all(requests).await;
 
+// TODO move this func out of here and also read the table name from env 
     create_table(db_client, RAW_DATA_TABLE_NAME, "id").await?;
 
     for result in results {
