@@ -1,21 +1,13 @@
-use std::sync::OnceLock;
-
-pub mod streets;
-
 #[derive(Debug, Clone)]
-pub struct Street {
-    pub street_name: String,
-    pub old_street_name: Option<String>,
-    pub municipality: String,
-    pub settlement: String,
-    pub settlement_part: String,
-    pub si_list: Option<String>,
+pub struct Street<'a> {
+    pub street_name: &'a str,
+    pub old_street_name: Option<&'a str>,
+    pub municipality: &'a str,
+    pub settlement: &'a str,
+    pub settlement_part: &'a str,
+    pub si_list: Option<&'a str>,
 }
 
-static STREETS: OnceLock<Vec<Street>> = OnceLock::new();
+pub type StaticStreet = Street<'static>;
 
-pub fn get_streets() -> &'static Vec<Street> {
-    STREETS.get_or_init(|| {
-        crate::streets::get_streets_list()
-    })
-}
+pub static STREETS: &[StaticStreet] = include!(concat!(env!("OUT_DIR"), "/streets_data.rs"));

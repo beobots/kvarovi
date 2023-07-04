@@ -1,5 +1,5 @@
 [workspace]
-default-members = [ "electricity" ]
+default-members = [ "electricity", "beograd_streets" ]
 members = [
     "electricity",
     "utils",
