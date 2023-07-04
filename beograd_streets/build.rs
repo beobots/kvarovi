@@ -1,11 +1,10 @@
-use anyhow::{Ok, Result};
+use anyhow::Result;
 use csv::{Reader, StringRecord};
 use serde::Deserialize;
 use std::env;
 use std::fmt::{Display, Formatter};
 use std::fs::File;
-use std::io::BufWriter;
-use std::io::Write;
+use std::io::{BufWriter, Write};
 use std::path::Path;
 
 #[derive(Debug, Deserialize, Clone)]
@@ -22,7 +21,7 @@ impl Display for Record {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            r#"StaticStreet {{street_name: "{}", old_street_name: {}, municipality: "{}", settlement: "{}", settlement_part: "{}", si_list: {}, }},"#,
+            r#"StaticStreet {{street_name: "{}", old_street_name: {}, municipality: "{}", settlement: "{}", settlement_part: "{}", si_list: {}, }}"#,
             self.street_name,
             if let Some(ref it) = self.old_street_name {
                 format!(r#"Some("{it}")"#)
@@ -47,7 +46,7 @@ where
 {
     write!(out, "&[")?;
     for item in iter {
-        write!(&mut out, "{item}")?;
+        write!(&mut out, "{item},")?;
     }
     write!(&mut out, "]")?;
     Ok(())
