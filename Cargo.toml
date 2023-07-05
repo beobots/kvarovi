@@ -1,7 +1,11 @@
 [workspace]
-default-members = [ "electricity" ]
+default-members = [
+    "electricity",
+    "beograd_streets",
+]
 members = [
     "electricity",
-    "utils"
+    "utils",
+    "beograd_streets",
 ]
 resolver = "2"

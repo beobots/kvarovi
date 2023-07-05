@@ -19,3 +19,6 @@ clean:
 	rm -rf ./.aws-sam
 
 .PHONY: delete clean list deploy build
+
+download-streets:
+	target/debug/download_beo_streets | tee download.csv && sort download.csv | uniq | tr '[:upper:]' '[:lower:]' > beograd_streets/beograd_streets.csv
