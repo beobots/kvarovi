@@ -5,6 +5,10 @@
 
 ### Setup lambda role
 
+#### Note
+
+You can use `awslocal` instead or `  aws --endpoint-url=http://localhost:4566` if you are using [localstack](https://github.com/localstack/localstack). It is included in docker-compose.yaml.
+
 Execute all of commands from root of project
 
 ```bash
