@@ -7,6 +7,8 @@ Globals:
   Function:
     Timeout: 100
     MemorySize: 128
+    Layers:
+      - !Sub "arn:aws:lambda:${AWS::Region}:580247275435:layer:LambdaInsightsExtension:38"
 
 Resources:
   RawDataTable:
@@ -33,6 +35,7 @@ Resources:
       CodeUri: ./
       Handler: bootstrap
       Runtime: provided.al2
+      Tracing: Active
       Events:
         ScheduleEvent:
           Type: ScheduleV2
@@ -45,10 +48,11 @@ Resources:
           RAW_DATA_TABLE_NAME: !Ref RawDataTable
           DATA_TABLE_NAME: !Ref DataTable
       Policies:
-        - DynamoDBWritePolicy:
+        - DynamoDBCrudPolicy:
             TableName: !Ref RawDataTable
-        - DynamoDBWritePolicy:
+        - DynamoDBCrudPolicy:
             TableName: !Ref DataTable
+        - CloudWatchLambdaInsightsExecutionRolePolicy
 
 Outputs:
   ElectroCollector:

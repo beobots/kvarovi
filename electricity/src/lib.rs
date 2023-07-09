@@ -9,6 +9,8 @@ use std::hash::{Hash, Hasher};
 use std::sync::OnceLock;
 use uuid::Uuid;
 
+use tracing::{event, span, Level};
+
 mod addresses;
 
 pub mod db;
@@ -76,6 +78,9 @@ async fn fetch_page(url: &str) -> Result<String> {
 }
 
 pub async fn collect_data(db_client: &Client, table_name: &str, pages: &[String]) -> Result<()> {
+    let span = span!(Level::TRACE, "collect_raw_data");
+    let _guard = span.enter();
+
     let requests = pages.iter().map(|page| {
         let p = page.clone();
         tokio::task::spawn_blocking(move || {
@@ -89,11 +94,15 @@ pub async fn collect_data(db_client: &Client, table_name: &str, pages: &[String]
 
     let results = futures::future::join_all(requests).await;
 
+    event!(Level::INFO, "Finished collecting raw data");
+
     for result in results {
         let (page, html) = result.unwrap().await?;
 
-        let _ = add_electricity_failure_raw_item(db_client, table_name, &html?, &page).await;
+        add_electricity_failure_raw_item(db_client, table_name, &html?, &page).await?;
     }
+
+    event!(Level::INFO, "Finished adding raw data to dynamodb");
 
     Ok(())
 }
