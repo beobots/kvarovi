@@ -33,8 +33,7 @@ async fn main() -> Result<()> {
 pub(crate) async fn my_handler(_: LambdaEvent<Value>) -> Result<()> {
     let db_client = init_client().await?;
 
-    let raw_data_table_name =
-        env::var("RAW_DATA_TABLE_NAME").expect("Environment variable 'RAW_DATA_TABLE_NAME' not set.");
+    let raw_data_table_name = env::var("RAW_DATA_TABLE_NAME")?;
 
     let pages = vec![
         String::from("https://elektrodistribucija.rs/planirana-iskljucenja-beograd/Dan_0_Iskljucenja.htm"),

@@ -1,14 +1,14 @@
 use anyhow::{Ok, Result};
 
 use dotenvy::dotenv;
-use electricity::db::init_client;
+use electricity::db::init_custom_client;
 use std::env;
 
 #[tokio::main]
 async fn main() -> Result<()> {
     dotenv().expect(".env file not found");
 
-    let db_client = init_client().await?;
+    let db_client = init_custom_client().await?;
 
     let raw_data_table_name = env::var("RAW_DATA_TABLE_NAME").unwrap_or("electricity_failures_raw".to_owned());
     // let data_table_name =
