@@ -5,7 +5,7 @@ version = 0.1
 [default]
 [default.global.parameters]
 stack_name = "beobots"
-region = "us-east-1"
+region = "eu-central-1"
 
 [default.build.parameters]
 beta_features = true
@@ -23,6 +23,7 @@ lint = true
 capabilities = "CAPABILITY_IAM"
 confirm_changeset = true
 resolve_s3 = true
+s3_prefix = "beobots"
 
 [default.package.parameters]
 resolve_s3 = true

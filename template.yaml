@@ -9,7 +9,13 @@ Globals:
     MemorySize: 128
 
 Resources:
-  Table:
+  RawDataTable:
+    Type: AWS::Serverless::SimpleTable
+    Properties:
+      PrimaryKey:
+        Name: id
+        Type: String
+  DataTable:
     Type: AWS::Serverless::SimpleTable
     Properties:
       PrimaryKey:
@@ -36,22 +42,21 @@ Resources:
               MaximumRetryAttempts: 3
       Environment:
         Variables:
-          TABLE_NAME: !Ref Table
+          RAW_DATA_TABLE_NAME: !Ref RawDataTable
+          DATA_TABLE_NAME: !Ref DataTable
       Policies:
         - DynamoDBWritePolicy:
-            TableName: !Ref Table
-        - Version: '2012-10-17'
-          Statement:
-            - Effect: Allow
-              Action:
-                - 'dynamodb:ListTables'
-              Resource: "*"
-
+            TableName: !Ref RawDataTable
+        - DynamoDBWritePolicy:
+            TableName: !Ref DataTable
 
 Outputs:
   ElectroCollector:
     Description: "Collect electro time tables"
     Value: !GetAtt ElectroCollector.Arn
-  PutTable:
+  RawDataTable:
     Description: "DynamoDB table name"
-    Value: !GetAtt Table.Arn
+    Value: !GetAtt RawDataTable.Arn
+  DataTable:
+    Description: "DynamoDB table name"
+    Value: !GetAtt DataTable.Arn
