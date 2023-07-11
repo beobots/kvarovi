@@ -2,8 +2,8 @@ use anyhow::{Ok, Result};
 
 use std::env;
 
-use std::str::FromStr;
 use lambda_runtime::{service_fn, LambdaEvent};
+use std::str::FromStr;
 
 use serde_json::Value;
 
@@ -11,7 +11,6 @@ use electricity::db::init_client;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-
     let trace_level = env::var("RAW_DATA_TABLE_NAME").unwrap_or("INFO".to_owned());
 
     tracing_subscriber::fmt()
