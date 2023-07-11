@@ -1,4 +1,4 @@
-AWSTemplateFormatVersion: '2010-09-09'
+AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
 Description: >
   Beograd Telegram Bots
@@ -7,9 +7,17 @@ Globals:
   Function:
     Timeout: 100
     MemorySize: 128
+    Layers:
+      - !Sub "arn:aws:lambda:${AWS::Region}:580247275435:layer:LambdaInsightsExtension:38"
 
 Resources:
-  Table:
+  RawDataTable:
+    Type: AWS::Serverless::SimpleTable
+    Properties:
+      PrimaryKey:
+        Name: id
+        Type: String
+  DataTable:
     Type: AWS::Serverless::SimpleTable
     Properties:
       PrimaryKey:
@@ -21,12 +29,13 @@ Resources:
     Metadata:
       BuildMethod: rust-cargolambda
       BuildProperties:
-        Binary: sample
+        Binary: electro_collector
       BuildArchitecture: x86_64
     Properties:
       CodeUri: ./
       Handler: bootstrap
       Runtime: provided.al2
+      Tracing: Active
       Events:
         ScheduleEvent:
           Type: ScheduleV2
@@ -36,15 +45,22 @@ Resources:
               MaximumRetryAttempts: 3
       Environment:
         Variables:
-          TABLE_NAME: !Ref Table
+          RAW_DATA_TABLE_NAME: !Ref RawDataTable
+          DATA_TABLE_NAME: !Ref DataTable
       Policies:
-        - DynamoDBWritePolicy:
-            TableName: !Ref Table
+        - DynamoDBCrudPolicy:
+            TableName: !Ref RawDataTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref DataTable
+        - CloudWatchLambdaInsightsExecutionRolePolicy
 
 Outputs:
   ElectroCollector:
     Description: "Collect electro time tables"
     Value: !GetAtt ElectroCollector.Arn
-  PutTable:
+  RawDataTable:
     Description: "DynamoDB table name"
-    Value: !GetAtt Table.Arn
+    Value: !GetAtt RawDataTable.Arn
+  DataTable:
+    Description: "DynamoDB table name"
+    Value: !GetAtt DataTable.Arn
