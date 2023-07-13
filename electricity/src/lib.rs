@@ -200,6 +200,75 @@ async fn find_last_electricity_failure_raw_version(
     Ok((last_version, last_version_hash))
 }
 
+pub async fn parse_all_records(
+    client: &Client,
+    raw_data_table_name: &str,
+    data_table_name: &str
+) -> Result<()> {
+
+    let results = client
+        .scan()
+        .table_name(raw_data_table_name)
+        .send()
+        .await?;
+
+    let mut item = None;
+
+    if let Some(items) = results.items() {
+        item = items.get(0);
+    }
+
+    if let Some(attributes) = item {
+        let id = attributes
+            .get("id")
+            .and_then(|av| av.as_s().ok())
+            .map(ToOwned::to_owned)
+            .context("id is missing")?;
+        let date = attributes
+            .get("date")
+            .and_then(|av| av.as_s().ok())
+            .map(ToOwned::to_owned)
+            .context("date is missing")?;
+        let url = attributes
+            .get("url")
+            .and_then(|av| av.as_s().ok())
+            .map(ToOwned::to_owned)
+            .context("url is missing")?;
+        let html = attributes
+            .get("html")
+            .and_then(|av| av.as_s().ok())
+            .map(ToOwned::to_owned)
+            .context("html is missing")?;
+        let hash = attributes
+            .get("hash")
+            .and_then(|av| av.as_s().ok())
+            .map(ToOwned::to_owned)
+            .context("hash is missing")?;
+        let version = attributes
+            .get("version")
+            .and_then(|av| av.as_n().ok())
+            .map(|n| n.parse::<i32>().expect("failed to parse version"))
+            .context("version is missing")?;
+
+        let raw_data = ElectricityFailuresRawData {
+            id,
+            date,
+            url,
+            html,
+            hash,
+            version,
+        };
+
+        let data = parse_raw_data_to_data(&raw_data)?;
+
+        for d in data {
+            save_electricity_failure_data(client, data_table_name, &d).await?;
+        }
+    }
+    Ok(())
+}
+
+
 pub async fn parse_and_save_raw_data(
     client: &Client,
     raw_data_table_name: &str,

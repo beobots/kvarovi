@@ -8,6 +8,7 @@ use std::str::FromStr;
 use serde_json::Value;
 
 use electricity::db::init_client;
+use electricity::parse_all_records;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -34,21 +35,16 @@ async fn main() -> Result<()> {
 }
 
 pub(crate) async fn my_handler(_: LambdaEvent<Value>) -> Result<()> {
+
     let db_client = init_client().await?;
 
     let raw_data_table_name = env::var("RAW_DATA_TABLE_NAME")?;
+    let data_table_name = env::var("DATA_TABLE_NAME")?;
 
-    let pages = vec![
-        String::from("https://elektrodistribucija.rs/planirana-iskljucenja-beograd/Dan_0_Iskljucenja.htm"),
-        String::from("https://elektrodistribucija.rs/planirana-iskljucenja-beograd/Dan_1_Iskljucenja.htm"),
-        String::from("https://elektrodistribucija.rs/planirana-iskljucenja-beograd/Dan_2_Iskljucenja.htm"),
-        String::from("https://elektrodistribucija.rs/planirana-iskljucenja-beograd/Dan_3_Iskljucenja.htm"),
-        //     String::from("https://elektrodistribucija.rs/planirana-iskljucenja-srbija/NoviSad_Dan_0_Iskljucenja.htm"),
-        //     String::from("https://elektrodistribucija.rs/planirana-iskljucenja-srbija/NoviSad_Dan_1_Iskljucenja.htm"),
-        //     String::from("https://elektrodistribucija.rs/planirana-iskljucenja-srbija/NoviSad_Dan_2_Iskljucenja.htm"),
-        //     String::from("https://elektrodistribucija.rs/planirana-iskljucenja-srbija/NoviSad_Dan_3_Iskljucenja.htm"),
-    ];
-    electricity::collect_data(&db_client, &raw_data_table_name, &pages).await?;
+    // NOTE we need to scan the table for raw data, but something needs to check if it is
+    // parsed so that it is not reparsed again.
+    parse_all_records(&db_client, &raw_data_table_name, &data_table_name).await?;
 
     Ok(())
 }
+
