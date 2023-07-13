@@ -200,17 +200,8 @@ async fn find_last_electricity_failure_raw_version(
     Ok((last_version, last_version_hash))
 }
 
-pub async fn parse_all_records(
-    client: &Client,
-    raw_data_table_name: &str,
-    data_table_name: &str
-) -> Result<()> {
-
-    let results = client
-        .scan()
-        .table_name(raw_data_table_name)
-        .send()
-        .await?;
+pub async fn parse_all_records(client: &Client, raw_data_table_name: &str, data_table_name: &str) -> Result<()> {
+    let results = client.scan().table_name(raw_data_table_name).send().await?;
 
     let mut item = None;
 
@@ -267,7 +258,6 @@ pub async fn parse_all_records(
     }
     Ok(())
 }
-
 
 pub async fn parse_and_save_raw_data(
     client: &Client,

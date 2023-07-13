@@ -35,16 +35,14 @@ async fn main() -> Result<()> {
 }
 
 pub(crate) async fn my_handler(_: LambdaEvent<Value>) -> Result<()> {
-
     let db_client = init_client().await?;
 
     let raw_data_table_name = env::var("RAW_DATA_TABLE_NAME")?;
     let data_table_name = env::var("DATA_TABLE_NAME")?;
 
-    // NOTE we need to scan the table for raw data, but something needs to check if it is
-    // parsed so that it is not reparsed again.
+    // NOTE we need to scan the table for raw data, but something needs to check if
+    // it is parsed so that it is not reparsed again.
     parse_all_records(&db_client, &raw_data_table_name, &data_table_name).await?;
 
     Ok(())
 }
-
