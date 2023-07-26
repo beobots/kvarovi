@@ -1,4 +1,4 @@
-use addresses::AddressRecord;
+use addresses::Address;
 use anyhow::{anyhow, Context as _, Ok, Result};
 use aws_sdk_dynamodb::{types::AttributeValue, Client};
 use chrono::NaiveDate;
@@ -7,12 +7,10 @@ use std::collections::hash_map::DefaultHasher;
 use std::fmt::Display;
 use std::hash::{Hash, Hasher};
 use std::sync::OnceLock;
+use tracing::{event, span, Level};
 use uuid::Uuid;
 
-use tracing::{event, span, Level};
-
 mod addresses;
-
 pub mod db;
 pub mod elektrodistribucija_parser;
 pub mod time_interval;
@@ -39,7 +37,7 @@ pub struct ElectricityFailuresData {
     region: String,
     time: String,
     date: String,
-    addresses: addresses::Addresses,
+    addresses: addresses::AddressRow,
 }
 
 impl Display for ElectricityFailuresData {
@@ -279,24 +277,36 @@ async fn add_electricity_failure_record(
     client: &Client,
     table_name: &str,
     data: &ElectricityFailuresData,
-    record: &AddressRecord,
+    record: Address,
 ) -> Result<()> {
-    let id = Uuid::new_v4().to_string();
+    let id = AttributeValue::S(Uuid::new_v4().to_string());
     let city_av = AttributeValue::S(data.city.to_owned());
     let region_av = AttributeValue::S(data.region.to_owned());
     let time_av = AttributeValue::S(data.time.to_owned());
-    let street_av = AttributeValue::S(record.street.to_owned());
+    let street_av = AttributeValue::S(record.street);
     let date_av = AttributeValue::S(data.date.to_owned());
 
     let request = client
         .put_item()
         .table_name(table_name)
-        .item("id", AttributeValue::S(id))
+        .item("id", id)
         .item("city", city_av)
         .item("region", region_av)
         .item("time", time_av)
+        .item("date", date_av)
+        .item(
+            "settlement",
+            if let Some(settlement) = record.settlement {
+                AttributeValue::S(settlement)
+            } else {
+                AttributeValue::Null(true)
+            },
+        )
         .item("street", street_av)
-        .item("date", date_av);
+        .item(
+            "buildings",
+            AttributeValue::S(serde_json::to_string(&record.buildings)?),
+        );
 
     let _ = request.send().await?;
 
@@ -311,7 +321,7 @@ pub async fn save_electricity_failure_data(
     let addresses = data.addresses.clone();
 
     for address in addresses.into_iter() {
-        add_electricity_failure_record(client, table_name, data, &address).await?;
+        add_electricity_failure_record(client, table_name, data, address).await?;
     }
 
     Ok(())
@@ -464,7 +474,7 @@ fn parse_raw_data_to_data(data: &ElectricityFailuresRawData) -> Result<Vec<Elect
             .collect::<String>();
         let translited_street = street.translit();
 
-        let addresses = addresses::Addresses::parse(&translited_street).map_err(|e| e.to_owned())?;
+        let addresses = addresses::AddressRow::parse(&translited_street).map_err(|e| e.to_owned())?;
 
         table_rows.push(ElectricityFailuresData {
             city: city.to_owned(),
