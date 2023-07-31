@@ -4,18 +4,16 @@
 //! Addressing system in Serbija, seems like, allows buildings without assigned
 //! number (see https://www.politika.rs/sr/clanak/398656/Srbija-bez-b-b-adresa)
 //! and they are called BB (Bez Broj or without number).
-#![allow(unused)]
 use nom::branch::alt;
 use nom::bytes::complete::{tag, tag_no_case, take_until1};
-use nom::character::complete::{alpha0, alpha1, digit0, digit1, multispace0, space0, space1};
-use nom::combinator::{all_consuming, map, map_res, not, opt, peek, recognize, value};
-use nom::error::Error;
+use nom::character::complete::{alpha0, alpha1, digit1, multispace0, space1};
+use nom::combinator::{all_consuming, map, map_res, not, opt, peek, recognize};
 use nom::error::VerboseError;
 use nom::multi::{many0, many1, separated_list1};
 use nom::sequence::{delimited, pair, preceded, separated_pair};
 use nom::{Err, IResult};
 use serde::Serialize;
-use std::fmt::{write, Display};
+use std::fmt::Display;
 
 type AddrError<'a> = VerboseError<&'a str>;
 
@@ -135,6 +133,7 @@ impl Address {
         }
     }
 
+    #[cfg(test)]
     fn with_settlement(settlement: &str, street: &str, numbers: Vec<Building>) -> Self {
         Self {
             settlement: Some(settlement.to_owned()),
@@ -183,10 +182,8 @@ impl AddressRow {
         let r = address_row(input)
             .map(|(_, items)| Self { items })
             .map_err(|e| match e {
-                nom::Err::Error(err) | nom::Err::Failure(err) => {
-                    anyhow::Error::msg(nom::error::convert_error(input, err))
-                }
-                nom::Err::Incomplete(_) => unreachable!("incomplete address string"),
+                Err::Error(err) | Err::Failure(err) => anyhow::Error::msg(nom::error::convert_error(input, err)),
+                Err::Incomplete(_) => unreachable!("incomplete address string"),
             })?;
 
         Ok(r)
