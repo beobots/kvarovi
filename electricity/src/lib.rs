@@ -474,7 +474,7 @@ fn parse_raw_data_to_data(data: &ElectricityFailuresRawData) -> Result<Vec<Elect
             .collect::<String>();
         let translited_street = street.translit();
 
-        let addresses = addresses::AddressRow::parse(&translited_street).map_err(|e| e.to_owned())?;
+        let addresses = addresses::AddressRow::parse(translited_street.trim_end())?;
 
         table_rows.push(ElectricityFailuresData {
             city: city.to_owned(),
