@@ -4,17 +4,18 @@
 //! Addressing system in Serbija, seems like, allows buildings without assigned
 //! number (see https://www.politika.rs/sr/clanak/398656/Srbija-bez-b-b-adresa)
 //! and they are called BB (Bez Broj or without number).
-#![allow(unused)]
 use nom::branch::alt;
 use nom::bytes::complete::{tag, tag_no_case, take_until1};
 use nom::character::complete::{alpha0, alpha1, digit1, multispace0, space1};
-use nom::combinator::{map, map_res, not, opt, peek, recognize, value};
-use nom::error::Error;
-use nom::multi::{many1, separated_list1};
+use nom::combinator::{all_consuming, map, map_res, not, opt, peek, recognize};
+use nom::error::VerboseError;
+use nom::multi::{many0, many1, separated_list1};
 use nom::sequence::{delimited, pair, preceded, separated_pair};
 use nom::{Err, IResult};
 use serde::Serialize;
-use std::fmt::{write, Display};
+use std::fmt::Display;
+
+type AddrError<'a> = VerboseError<&'a str>;
 
 #[derive(Eq, PartialEq, Clone, Debug, Serialize)]
 pub(crate) struct Number {
@@ -132,6 +133,7 @@ impl Address {
         }
     }
 
+    #[cfg(test)]
     fn with_settlement(settlement: &str, street: &str, numbers: Vec<Building>) -> Self {
         Self {
             settlement: Some(settlement.to_owned()),
@@ -176,8 +178,15 @@ pub(crate) struct AddressRow {
 }
 
 impl AddressRow {
-    pub fn parse(input: &str) -> Result<Self, Err<Error<&str>>> {
-        address_row(input).map(|(_, items)| Self { items })
+    pub fn parse(input: &str) -> anyhow::Result<Self> {
+        let r = address_row(input)
+            .map(|(_, items)| Self { items })
+            .map_err(|e| match e {
+                Err::Error(err) | Err::Failure(err) => anyhow::Error::msg(nom::error::convert_error(input, err)),
+                Err::Incomplete(_) => unreachable!("incomplete address string"),
+            })?;
+
+        Ok(r)
     }
 }
 
@@ -201,7 +210,7 @@ impl Display for AddressRow {
 }
 
 /// Parser a regular address number with optional extension letter.
-fn address_number(input: &str) -> IResult<&str, Number> {
+fn address_number(input: &str) -> IResult<&str, Number, AddrError> {
     let digit_parser = map_res(digit1, |s: &str| s.parse::<usize>());
     let ext_parser = map(
         recognize(pair(alpha0, opt(pair(tag("/"), digit1)))),
@@ -211,17 +220,12 @@ fn address_number(input: &str) -> IResult<&str, Number> {
 }
 
 /// Parse a range of addresses
-fn address_number_range(input: &str) -> IResult<&str, Range> {
+fn address_number_range(input: &str) -> IResult<&str, Range, AddrError> {
     let parser = separated_pair(address_number, tag("-"), address_number);
     map(parser, Range::from)(input)
 }
 
-fn bez_broj(input: &str) -> IResult<&str, Building> {
-    use nom::character::complete::digit0;
-    use nom::character::complete::space0;
-    use nom::combinator::opt;
-    use nom::multi::many0;
-
+fn bez_broj(input: &str) -> IResult<&str, Building, AddrError> {
     let alpha_digit = alt((alpha1, digit1));
 
     let bb_ext = opt(recognize(pair(
@@ -239,7 +243,7 @@ fn bez_broj(input: &str) -> IResult<&str, Building> {
 }
 
 /// Parses an address number, a range of addresses or a special BB case.
-fn broj(input: &str) -> IResult<&str, Building> {
+fn broj(input: &str) -> IResult<&str, Building, AddrError> {
     // let bb_parser = value(Building::Bb(None), tag_no_case("bb"));
     let number_parser = map(address_number, Building::from);
     let range_parser = map(address_number_range, Building::from);
@@ -248,7 +252,7 @@ fn broj(input: &str) -> IResult<&str, Building> {
 }
 
 /// Recognizes a list of addresses, ranges of addresses or special BB cases.
-fn broj_list(input: &str) -> IResult<&str, Vec<Building>> {
+fn broj_list(input: &str) -> IResult<&str, Vec<Building>, AddrError> {
     let parser = separated_list1(tag(","), broj);
     delimited(
         multispace0,
@@ -259,14 +263,14 @@ fn broj_list(input: &str) -> IResult<&str, Vec<Building>> {
 }
 
 /// Recognizes a pair of an address and the list of addresses' numbers.
-fn address_number_pair(input: &str) -> IResult<&str, Address> {
+fn address_number_pair(input: &str) -> IResult<&str, Address, AddrError> {
     let take_pp = take_until1(":");
     map(separated_pair(take_pp, tag(":"), broj_list), |(a, b)| {
         Address::new(a.trim(), b)
     })(input)
 }
 
-fn settlement(input: &str) -> IResult<&str, Vec<Address>> {
+fn settlement(input: &str) -> IResult<&str, Vec<Address>, AddrError> {
     static SETTLEMENT: &str = "naselje";
     let address = preceded(peek(not(tag_no_case(SETTLEMENT))), address_number_pair);
     let addresses = many1(address);
@@ -280,13 +284,15 @@ fn settlement(input: &str) -> IResult<&str, Vec<Address>> {
     )(input)
 }
 
-fn address_kind(input: &str) -> IResult<&str, Vec<Address>> {
+fn address_kind(input: &str) -> IResult<&str, Vec<Address>, AddrError> {
     let addr_parser = map(address_number_pair, |it| vec![it]);
     alt((settlement, addr_parser))(input)
 }
 
-fn address_row(input: &str) -> IResult<&str, Vec<Address>> {
-    map(many1(address_kind), |it| it.into_iter().flatten().collect())(input)
+fn address_row(input: &str) -> IResult<&str, Vec<Address>, AddrError> {
+    all_consuming(map(many1(address_kind), |it| {
+        it.into_iter().flatten().collect()
+    }))(input)
 }
 
 #[cfg(test)]
