@@ -1,13 +1,12 @@
-use anyhow::{Ok, Result};
-
-use std::env;
-
-use lambda_runtime::{service_fn, LambdaEvent};
-use std::str::FromStr;
-
-use serde_json::Value;
-
+//! Lambda function that downloads electricity time table and
+//! stores it into the database.
+use anyhow::Result;
 use electricity::db::init_client;
+use electricity::BEOGRAD_ELECTRICITY_PAGES;
+use lambda_runtime::{service_fn, LambdaEvent};
+use serde_json::Value;
+use std::env;
+use std::str::FromStr;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -24,7 +23,7 @@ async fn main() -> Result<()> {
         .without_time()
         .init();
 
-    let func = service_fn(my_handler);
+    let func = service_fn(electro_handler);
     if let Err(e) = lambda_runtime::run(func).await {
         tracing::error!("Error: {}", e);
         std::process::exit(1);
@@ -33,22 +32,8 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-pub(crate) async fn my_handler(_: LambdaEvent<Value>) -> Result<()> {
+async fn electro_handler(_: LambdaEvent<Value>) -> Result<()> {
     let db_client = init_client().await?;
-
     let raw_data_table_name = env::var("RAW_DATA_TABLE_NAME")?;
-
-    let pages = vec![
-        String::from("https://elektrodistribucija.rs/planirana-iskljucenja-beograd/Dan_0_Iskljucenja.htm"),
-        String::from("https://elektrodistribucija.rs/planirana-iskljucenja-beograd/Dan_1_Iskljucenja.htm"),
-        String::from("https://elektrodistribucija.rs/planirana-iskljucenja-beograd/Dan_2_Iskljucenja.htm"),
-        String::from("https://elektrodistribucija.rs/planirana-iskljucenja-beograd/Dan_3_Iskljucenja.htm"),
-        //     String::from("https://elektrodistribucija.rs/planirana-iskljucenja-srbija/NoviSad_Dan_0_Iskljucenja.htm"),
-        //     String::from("https://elektrodistribucija.rs/planirana-iskljucenja-srbija/NoviSad_Dan_1_Iskljucenja.htm"),
-        //     String::from("https://elektrodistribucija.rs/planirana-iskljucenja-srbija/NoviSad_Dan_2_Iskljucenja.htm"),
-        //     String::from("https://elektrodistribucija.rs/planirana-iskljucenja-srbija/NoviSad_Dan_3_Iskljucenja.htm"),
-    ];
-    electricity::collect_data(&db_client, &raw_data_table_name, &pages).await?;
-
-    Ok(())
+    electricity::collect_data(&db_client, &raw_data_table_name, BEOGRAD_ELECTRICITY_PAGES).await
 }
