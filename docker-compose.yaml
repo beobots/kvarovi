@@ -17,6 +17,7 @@ services:
       AWS_SECRET_ACCESS_KEY: local
     depends_on:
       - dynamodb-local
+
   localstack:
     container_name: "${LOCALSTACK_DOCKER_NAME-localstack_main}"
     image: localstack/localstack
@@ -30,3 +31,22 @@ services:
       # uncomment bellow if you want to cache runtime installations and all config
       # - "${LOCALSTACK_VOLUME_DIR:-./volume}:/var/lib/localstack"
       - "/var/run/docker.sock:/var/run/docker.sock"
+
+  postgis_db:
+    build:
+      context: ./docker/postgis
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      ALLOW_IP_RANGE: "0.0.0.0/0"
+      POSTGRES_DB: kvarovi
+      POSTGRES_USER: dbuser_HERE
+      POSTGRES_PASSWORD: dbpassword_HERE
+    ports:
+      - 5432:5432
+    volumes:
+      - postgis_data:/var/lib/postgresql/data
+      - ./docker/postgis/input_data:/input_data
+
+volumes:
+  postgis_data:
