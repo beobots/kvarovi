@@ -9,3 +9,9 @@ members = [
     "beograd_streets",
 ]
 resolver = "2"
+
+[workspace.dependencies]
+anyhow = "1"
+scraper = "0.17"
+tokio = { version = "1.15", features = ["full"] }
+futures = "0.3.28"
