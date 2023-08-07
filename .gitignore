@@ -6,3 +6,4 @@ download.csv
 .vscode
 rust-toolchain.toml
 volume
+*.osm.pbf

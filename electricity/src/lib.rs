@@ -1,7 +1,9 @@
+use crate::translit::Translit;
 use addresses::Address;
 use anyhow::{anyhow, Context as _, Ok, Result};
 use aws_sdk_dynamodb::{types::AttributeValue, Client};
 use chrono::NaiveDate;
+use elektrodistribucija_parser::{get_content_table_html, get_page_date, get_page_header};
 use scraper::Selector;
 use std::collections::hash_map::DefaultHasher;
 use std::fmt::Display;
@@ -16,9 +18,20 @@ pub mod elektrodistribucija_parser;
 pub mod time_interval;
 pub mod translit;
 
-use elektrodistribucija_parser::{get_content_table_html, get_page_date, get_page_header};
+pub static BEOGRAD_ELECTRICITY_PAGES: &[&str] = &[
+    "https://elektrodistribucija.rs/planirana-iskljucenja-beograd/Dan_0_Iskljucenja.htm",
+    "https://elektrodistribucija.rs/planirana-iskljucenja-beograd/Dan_1_Iskljucenja.htm",
+    "https://elektrodistribucija.rs/planirana-iskljucenja-beograd/Dan_2_Iskljucenja.htm",
+    "https://elektrodistribucija.rs/planirana-iskljucenja-beograd/Dan_3_Iskljucenja.htm",
+];
 
-use crate::translit::Translit;
+/*
+Novi Sad data:
+"https://elektrodistribucija.rs/planirana-iskljucenja-srbija/NoviSad_Dan_0_Iskljucenja.htm"
+"https://elektrodistribucija.rs/planirana-iskljucenja-srbija/NoviSad_Dan_1_Iskljucenja.htm"
+"https://elektrodistribucija.rs/planirana-iskljucenja-srbija/NoviSad_Dan_2_Iskljucenja.htm"
+"https://elektrodistribucija.rs/planirana-iskljucenja-srbija/NoviSad_Dan_3_Iskljucenja.htm"
+*/
 
 static TR_SELECTOR: OnceLock<Selector> = OnceLock::new();
 static TD_SELECTOR: OnceLock<Selector> = OnceLock::new();
@@ -75,12 +88,12 @@ async fn fetch_page(url: &str) -> Result<String> {
     Ok(response.text().await?)
 }
 
-pub async fn collect_data(db_client: &Client, table_name: &str, pages: &[String]) -> Result<()> {
+pub async fn collect_data(db_client: &Client, table_name: &str, pages: &[&str]) -> Result<()> {
     let span = span!(Level::TRACE, "collect_raw_data");
     let _guard = span.enter();
 
     let requests = pages.iter().map(|page| {
-        let p = page.clone();
+        let p = page.to_string();
         tokio::task::spawn_blocking(move || {
             tokio::task::spawn(async move {
                 let html = fetch_page(&p).await;
