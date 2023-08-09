@@ -18,7 +18,13 @@ clean:
 	cargo clean
 	rm -rf ./.aws-sam
 
-.PHONY: delete clean list deploy build
-
 download-streets:
 	target/debug/download_beo_streets | tee download.csv && sort download.csv | uniq | tr '[:upper:]' '[:lower:]' > beograd_streets/beograd_streets.csv
+
+./docker/postgis/input_data/serbia-latest.osm.pbf:
+	@wget -P ./docker/postgis/input_data https://download.geofabrik.de/europe/serbia-latest.osm.pbf
+
+dev-bootstrap: ./docker/postgis/input_data/serbia-latest.osm.pbf
+	@echo "bootstrap"
+
+.PHONY: delete clean list deploy build download-streets
