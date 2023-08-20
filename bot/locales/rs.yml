@@ -1,0 +1,15 @@
+start: Здраво! Добродошли у бот
+menu:
+  settings: Подешавања
+  check_address: Проверите адресу
+  my_address: Моје адресе
+  subscribe: Претплатити се
+  unsubscribe: Отплатити се
+settings:
+  text: Шта желите да промените?
+  language: Језик
+  notification: Обавештења
+  back: Назад
+  change_language_text: Изабери језик
+  language_changed: Језик је промењен у српски
+check_address_text: Унесите своју адресу или кликните на Пошаљи координате
