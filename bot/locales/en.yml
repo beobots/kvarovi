@@ -1,0 +1,15 @@
+start: Hi! Welcome to the bot
+menu:
+  settings: Settings
+  check_address: Check address
+  my_address: My addresses
+  subscribe: Subscribe
+  unsubscribe: Unsubscribe
+settings:
+  text: What do you want to change?
+  language: Language
+  notification: Notifications
+  back: Back
+  change_language_text: Choose language
+  language_changed: Language changed to english
+check_address_text: Enter your address or click on provide coordinates

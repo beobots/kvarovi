@@ -1,0 +1,15 @@
+start: Привет! Добро пожаловать в бота
+menu:
+  settings: Настройки
+  check_address: Проверить адрес
+  my_address: Мои адреса
+  subscribe: Подписаться
+  unsubscribe: Отписаться
+settings:
+  text: Что вы хотите изменить?
+  language: Язык
+  notification: Уведомления
+  back: Назад
+  change_language_text: Выберите язык
+  language_changed: Язык изменен на русский
+check_address_text: Введите ваш адрес или нажми на предоставить кординаты
