@@ -39,8 +39,14 @@ impl From<&'_ str> for CharOrString {
 
 static CHAR_MAP: OnceLock<HashMap<char, CharOrString>> = OnceLock::new();
 
+static NAKED_MAP: OnceLock<HashMap<char, CharOrString>> = OnceLock::new();
+
 pub trait Translit {
     fn translit(&self) -> String;
+}
+
+pub trait Naked {
+    fn naked(&self) -> String;
 }
 
 impl<T> Translit for T
@@ -49,6 +55,15 @@ where
 {
     fn translit(&self) -> String {
         translit(self.as_ref())
+    }
+}
+
+impl<T> Naked for T
+where
+    T: AsRef<str>,
+{
+    fn naked(&self) -> String {
+        naked(self.as_ref())
     }
 }
 
@@ -90,6 +105,23 @@ fn translit(input: &str) -> String {
         map
     });
 
+    remap_characters(map, input)
+}
+
+fn naked(input: &str) -> String {
+    let map = NAKED_MAP.get_or_init(|| {
+        let mut map = HashMap::new();
+        map.insert('ć', CharOrString::Char('c'));
+        map.insert('č', CharOrString::Char('c'));
+        map.insert('ž', CharOrString::Char('z'));
+        map.insert('đ', CharOrString::String("dj".to_string()));
+        map
+    });
+
+    remap_characters(map, input)
+}
+
+fn remap_characters(map: &HashMap<char, CharOrString>, input: &str) -> String {
     let string_iter = input.chars().map(|c| {
         if let Some(mapped_value) = map.get(&c) {
             match mapped_value {
