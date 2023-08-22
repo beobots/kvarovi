@@ -111,7 +111,7 @@ fn get_language_actions(preference: &ChatPreference, with_back_button: Option<bo
 }
 
 async fn get_sqlx_database_client() -> Result<sqlx::PgPool> {
-    let database_url = dotenv::var("POSTGRESQL_URL")?;
+    let database_url = dotenvy::var("POSTGRESQL_URL")?;
     let pool = PgPoolOptions::new()
         .max_connections(5)
         .connect(&database_url)
