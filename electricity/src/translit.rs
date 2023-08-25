@@ -1,7 +1,7 @@
 //! To simplify text processing and models all the input text from users and
 //! data obtained from web sites will be transliterated into Latin script and to
 //! lower case register.
-use std::collections::HashMap;
+use fnv::FnvHashMap;
 use std::iter::FromIterator;
 use std::sync::OnceLock;
 
@@ -37,9 +37,9 @@ impl From<&'_ str> for CharOrString {
     }
 }
 
-static CHAR_MAP: OnceLock<HashMap<char, CharOrString>> = OnceLock::new();
+static CHAR_MAP: OnceLock<FnvHashMap<char, CharOrString>> = OnceLock::new();
 
-static NAKED_MAP: OnceLock<HashMap<char, CharOrString>> = OnceLock::new();
+static NAKED_MAP: OnceLock<FnvHashMap<char, CharOrString>> = OnceLock::new();
 
 pub trait Translit {
     fn translit(&self) -> String;
@@ -69,8 +69,7 @@ where
 
 fn translit(input: &str) -> String {
     let map = CHAR_MAP.get_or_init(|| {
-        let mut map = HashMap::new();
-
+        let mut map = FnvHashMap::default();
         smap![map, 'a', 'А', 'а'];
         smap![map, 'b', 'Б', 'б'];
         smap![map, 'c', 'Ц', 'ц'];
@@ -101,7 +100,6 @@ fn translit(input: &str) -> String {
         smap![map, 'v', 'В', 'в'];
         smap![map, 'z', 'З', 'з'];
         smap![map, 'ž', 'Ж', 'ж'];
-
         map
     });
 
@@ -110,7 +108,7 @@ fn translit(input: &str) -> String {
 
 fn naked(input: &str) -> String {
     let map = NAKED_MAP.get_or_init(|| {
-        let mut map = HashMap::new();
+        let mut map = FnvHashMap::default();
         map.insert('ć', CharOrString::Char('c'));
         map.insert('č', CharOrString::Char('c'));
         map.insert('ž', CharOrString::Char('z'));
@@ -121,7 +119,7 @@ fn naked(input: &str) -> String {
     remap_characters(map, input)
 }
 
-fn remap_characters(map: &HashMap<char, CharOrString>, input: &str) -> String {
+fn remap_characters(map: &FnvHashMap<char, CharOrString>, input: &str) -> String {
     let string_iter = input.chars().map(|c| {
         if let Some(mapped_value) = map.get(&c) {
             match mapped_value {
