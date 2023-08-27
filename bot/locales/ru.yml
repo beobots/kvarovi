@@ -13,3 +13,5 @@ settings:
   change_language_text: Выберите язык
   language_changed: Язык изменен на русский
 check_address_text: Введите ваш адрес или нажми на предоставить кординаты
+shutdown_warning: "Скоро отключение по вашему адресу: %{address}"
+subscribed: Вы подписались на уведомления об отключениях воды

@@ -13,3 +13,5 @@ settings:
   change_language_text: Choose language
   language_changed: Language changed to english
 check_address_text: Enter your address or click on provide coordinates
+shutdown_warning: The shutdown at your address %{address} is coming soon
+subscribed: You have subscribed to water shutdown notifications

@@ -214,59 +214,56 @@ async fn find_last_electricity_failure_raw_version(
 pub async fn parse_all_records(client: &Client, raw_data_table_name: &str, data_table_name: &str) -> Result<()> {
     let results = client.scan().table_name(raw_data_table_name).send().await?;
 
-    let mut item = None;
-
     if let Some(items) = results.items() {
-        item = items.get(0);
-    }
+        for item in items {
+            let id = item
+                .get("id")
+                .and_then(|av| av.as_s().ok())
+                .map(ToOwned::to_owned)
+                .context("id is missing")?;
+            let date = item
+                .get("date")
+                .and_then(|av| av.as_s().ok())
+                .map(ToOwned::to_owned)
+                .context("date is missing")?;
+            let url = item
+                .get("url")
+                .and_then(|av| av.as_s().ok())
+                .map(ToOwned::to_owned)
+                .context("url is missing")?;
+            let html = item
+                .get("html")
+                .and_then(|av| av.as_s().ok())
+                .map(ToOwned::to_owned)
+                .context("html is missing")?;
+            let hash = item
+                .get("hash")
+                .and_then(|av| av.as_s().ok())
+                .map(ToOwned::to_owned)
+                .context("hash is missing")?;
+            let version = item
+                .get("version")
+                .and_then(|av| av.as_n().ok())
+                .map(|n| n.parse::<i32>().expect("failed to parse version"))
+                .context("version is missing")?;
 
-    if let Some(attributes) = item {
-        let id = attributes
-            .get("id")
-            .and_then(|av| av.as_s().ok())
-            .map(ToOwned::to_owned)
-            .context("id is missing")?;
-        let date = attributes
-            .get("date")
-            .and_then(|av| av.as_s().ok())
-            .map(ToOwned::to_owned)
-            .context("date is missing")?;
-        let url = attributes
-            .get("url")
-            .and_then(|av| av.as_s().ok())
-            .map(ToOwned::to_owned)
-            .context("url is missing")?;
-        let html = attributes
-            .get("html")
-            .and_then(|av| av.as_s().ok())
-            .map(ToOwned::to_owned)
-            .context("html is missing")?;
-        let hash = attributes
-            .get("hash")
-            .and_then(|av| av.as_s().ok())
-            .map(ToOwned::to_owned)
-            .context("hash is missing")?;
-        let version = attributes
-            .get("version")
-            .and_then(|av| av.as_n().ok())
-            .map(|n| n.parse::<i32>().expect("failed to parse version"))
-            .context("version is missing")?;
+            let raw_data = ElectricityFailuresRawData {
+                id,
+                date,
+                url,
+                html,
+                hash,
+                version,
+            };
 
-        let raw_data = ElectricityFailuresRawData {
-            id,
-            date,
-            url,
-            html,
-            hash,
-            version,
-        };
+            let data = parse_raw_data_to_data(&raw_data)?;
 
-        let data = parse_raw_data_to_data(&raw_data)?;
-
-        for d in data {
-            save_electricity_failure_data(client, data_table_name, &d).await?;
+            for d in data {
+                save_electricity_failure_data(client, data_table_name, &d).await?;
+            }
         }
     }
+
     Ok(())
 }
 
@@ -487,18 +484,55 @@ fn parse_raw_data_to_data(data: &ElectricityFailuresRawData) -> Result<Vec<Elect
             .collect::<String>();
         let translited_street = street.translit();
 
-        let addresses = addresses::AddressRow::parse(translited_street.trim_end())?;
+        let addresses = addresses::AddressRow::parse(translited_street.trim_end());
 
-        table_rows.push(ElectricityFailuresData {
-            city: city.to_owned(),
-            region,
-            time,
-            date: format_date(date.to_owned())?,
-            addresses,
-        });
+        if addresses.is_ok() {
+            table_rows.push(ElectricityFailuresData {
+                city: city.to_owned(),
+                region,
+                time,
+                date: format_date(date.to_owned())?,
+                addresses: addresses.unwrap(),
+            });
+        }
     }
 
     Ok(table_rows)
+}
+
+pub async fn find_ongoing_failures(client: &Client, data_table_name: &str) -> Result<Vec<String>> {
+    let hours_24_from_now = chrono::Utc::now() + chrono::Duration::hours(24);
+    let formatted_date = hours_24_from_now.format("%d-%m-%Y").to_string().to_owned();
+    let date_av = AttributeValue::S(formatted_date.to_owned());
+
+    let results = client
+        .scan()
+        .table_name(data_table_name)
+        .filter_expression("#date <= :date")
+        .expression_attribute_names("#date", "date")
+        .expression_attribute_values(":date", date_av)
+        .send()
+        .await?;
+
+    if let Some(items) = results.items() {
+        let mut data: Vec<String> = vec![];
+
+        for item in items {
+            let street = item
+                .get("street")
+                .and_then(|av| av.as_s().ok())
+                .map(ToOwned::to_owned)
+                .context("street is missing")?;
+
+            data.push(street);
+        }
+
+        return Ok(data);
+    }
+
+    println!("{:?}", results);
+
+    Ok(vec![])
 }
 
 #[cfg(test)]

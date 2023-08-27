@@ -13,3 +13,5 @@ settings:
   change_language_text: Изабери језик
   language_changed: Језик је промењен у српски
 check_address_text: Унесите своју адресу или кликните на Пошаљи координате
+shutdown_warning: Искључење на вашој адреси %{address} је ускоро
+subscribed: Претплатили сте се на обавештења о искључењима воде

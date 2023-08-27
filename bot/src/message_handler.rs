@@ -1,10 +1,15 @@
-use crate::repositories::{
-    chat_preference_repository::{ChatPreference, ChatPreferenceRepository, NewChatPreference, Repository as _},
-    message_repository::{MessageRepository, NewMessage, Repository as _},
-    subscription_repository::{NewSubscription, Repository as _, SubscriptionsRepository},
-};
 use crate::utils::{escape_markdown, t};
+use crate::{
+    repositories::{
+        chat_preference_repository::{ChatPreference, ChatPreferenceRepository, NewChatPreference, Repository as _},
+        message_repository::{MessageRepository, NewMessage, Repository as _},
+        subscription_repository::{NewSubscription, Repository as _, SubscriptionsRepository},
+    },
+    utils::Escape,
+};
 use anyhow::{Ok, Result};
+use electricity::translit::Translit;
+use rust_i18n::t as _t;
 use sqlx::postgres::PgPoolOptions;
 use teloxide_core::{
     prelude::*,
@@ -270,16 +275,14 @@ pub async fn handle_update(update: &Update) -> Result<()> {
                             bot.send_message(chat_id, "Вот информация по вашему адресу")
                                 .await?;
                         } else if last_command_text == get_subscribe_action_text(&chat_preference) {
-                            // Сделать что то с подпиской
-                            // let parsed_address = parse_address(text);
                             subscriptions_repository
                                 .insert(NewSubscription {
                                     chat_id: chat_id_i64,
-                                    address: text.to_owned(),
+                                    address: text.translit().to_owned(),
                                 })
                                 .await?;
 
-                            bot.send_message(chat_id, "Вы подписались на уведомления об отключениях воды")
+                            bot.send_message(chat_id, t("subscribed", &chat_preference.language))
                                 .await?;
                         } else if last_command_text == get_unsubscribe_action_text(&chat_preference) {
                             let subscriptions = subscriptions_repository
@@ -424,6 +427,40 @@ async fn send_message(chat_id: i64, message: &str) -> Result<()> {
 
     bot.send_message(ChatId(chat_id), escape_markdown(message))
         .await?;
+
+    Ok(())
+}
+
+pub async fn notify_addresses(addresses: Vec<String>) -> Result<()> {
+    let sqlx_database_client = get_sqlx_database_client().await?;
+
+    let subscription_repository = SubscriptionsRepository::new(&sqlx_database_client);
+
+    let subscriptions = subscription_repository
+        .find_all_by_addresses(addresses)
+        .await?;
+
+    for subscription in subscriptions {
+        let chat_id = subscription.chat_id;
+        let chat_preference_repository = ChatPreferenceRepository::new(&sqlx_database_client);
+        let chat_preference = chat_preference_repository
+            .find_one_by_chat_id(chat_id)
+            .await?;
+
+        if let Some(chat_preference) = chat_preference {
+            send_message(
+                chat_id,
+                _t!(
+                    "shutdown_warning",
+                    locale = &chat_preference.language,
+                    address = subscription.address
+                )
+                .escape_markdown()
+                .as_str(),
+            )
+            .await?;
+        }
+    }
 
     Ok(())
 }
