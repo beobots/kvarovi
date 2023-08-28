@@ -18,6 +18,7 @@ use teloxide_core::{
         ParseMode, Update, UpdateKind,
     },
 };
+use tracing::debug;
 
 const SUPPORTED_LANGUAGES: [&str; 3] = ["en", "ru", "rs"];
 
@@ -193,7 +194,7 @@ pub async fn handle_update(update: &Update) -> Result<()> {
     message_repository.create_table().await?;
     chat_preference_repository.create_table().await?;
 
-    println!("Got update: {:?}", update);
+    debug!("Got update: {update:?}");
 
     match &update.kind {
         UpdateKind::Message(message) => {
@@ -327,7 +328,8 @@ pub async fn handle_update(update: &Update) -> Result<()> {
                         }
                     }
                 }
-                print!("Got message: {:?}\n", text);
+
+                debug!("Got message: {text:?}");
 
                 message_repository
                     .insert(NewMessage {

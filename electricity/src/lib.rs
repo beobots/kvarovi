@@ -502,7 +502,7 @@ fn parse_raw_data_to_data(data: &ElectricityFailuresRawData) -> Result<Vec<Elect
 
 pub async fn find_ongoing_failures(client: &Client, data_table_name: &str) -> Result<Vec<String>> {
     let hours_24_from_now = chrono::Utc::now() + chrono::Duration::hours(24);
-    let formatted_date = hours_24_from_now.format("%d-%m-%Y").to_string().to_owned();
+    let formatted_date = hours_24_from_now.format("%d-%m-%Y").to_string();
     let date_av = AttributeValue::S(formatted_date.to_owned());
 
     let results = client
