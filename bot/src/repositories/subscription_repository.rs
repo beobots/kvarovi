@@ -6,6 +6,7 @@ use sqlx::postgres::PgPool;
 pub trait Repository {
     async fn insert(&self, value: NewSubscription) -> Result<()>;
     async fn find_all_by_chat_id(&self, chat_id: i64) -> Result<Vec<Subscription>>;
+    async fn find_all_by_addresses(&self, addresses: Vec<String>) -> Result<Vec<Subscription>>;
     async fn delete_by_ids(&self, ids: Vec<i64>) -> Result<()>;
 }
 
@@ -83,5 +84,22 @@ impl<'a> Repository for SubscriptionsRepository<'a> {
         sqlx::query(query.as_str()).execute(self.client).await?;
 
         Ok(())
+    }
+
+    async fn find_all_by_addresses(&self, addresses: Vec<String>) -> Result<Vec<Subscription>> {
+        let addresses = addresses
+            .iter()
+            .map(|address| format!("'%{}%'", address))
+            .collect::<Vec<String>>()
+            .join(", ");
+        let query = format!(
+            "SELECT * FROM subscriptions WHERE address ilike any (array[{}])",
+            addresses
+        );
+        let subscriptions = sqlx::query_as::<_, Subscription>(query.as_str())
+            .fetch_all(self.client)
+            .await?;
+
+        Ok(subscriptions)
     }
 }

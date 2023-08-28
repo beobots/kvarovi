@@ -1,7 +1,11 @@
 use rust_i18n::t as _t;
 
+pub trait Escape {
+    fn escape_markdown(&self) -> String;
+}
+
 pub fn t(key: &str, locale: &str) -> String {
-    escape_markdown(&_t!(key, locale = locale))
+    _t!(key, locale = locale).escape_markdown()
 }
 
 pub fn escape_markdown(text: &str) -> String {
@@ -16,4 +20,13 @@ pub fn escape_markdown(text: &str) -> String {
         .replace('-', "\\-")
         .replace('.', "\\.")
         .replace('!', "\\!")
+}
+
+impl<T> Escape for T
+where
+    T: AsRef<str>,
+{
+    fn escape_markdown(&self) -> String {
+        escape_markdown(self.as_ref())
+    }
 }
