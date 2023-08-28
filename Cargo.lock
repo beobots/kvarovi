@@ -886,6 +886,7 @@ dependencies = [
  "beograd_streets",
  "chrono",
  "dotenvy",
+ "fnv",
  "futures",
  "lambda_runtime",
  "nom",
