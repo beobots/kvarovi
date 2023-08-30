@@ -8,6 +8,13 @@ pub trait Repository {
     async fn find_one_by_chat_id(&self, chat_id: i64, message_type: String) -> Result<Option<Message>>;
 }
 
+#[derive(sqlx::Type)]
+#[sqlx(type_name = "message_type", rename_all = "lowercase")]
+pub enum MessageType {
+    Text,
+    Command,
+}
+
 #[derive(sqlx::FromRow, Debug)]
 pub struct Message {
     pub id: i32,

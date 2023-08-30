@@ -1,16 +1,18 @@
+use crate::preferences::*;
 use crate::utils::{escape_markdown, t};
 use crate::{
     repositories::{
-        chat_preference_repository::{ChatPreference, ChatPreferenceRepository, NewChatPreference, Repository as _},
         message_repository::{MessageRepository, NewMessage, Repository as _},
         subscription_repository::{NewSubscription, Repository as _, SubscriptionsRepository},
     },
     utils::Escape,
 };
+use anyhow::Context as _;
 use anyhow::{Ok, Result};
 use electricity::translit::Translit;
 use rust_i18n::t as _t;
 use sqlx::postgres::PgPoolOptions;
+use std::str::FromStr;
 use teloxide_core::{
     prelude::*,
     types::{
@@ -23,23 +25,23 @@ use tracing::debug;
 const SUPPORTED_LANGUAGES: [&str; 3] = ["en", "ru", "rs"];
 
 fn get_settings_action_text(preference: &ChatPreference) -> String {
-    format!("⚙️ {}", t("menu.settings", &preference.language))
+    format!("⚙️ {}", t("menu.settings", preference.language))
 }
 
 fn get_my_addresses_action_text(preference: &ChatPreference) -> String {
-    format!("📝 {}", t("menu.my_address", &preference.language))
+    format!("📝 {}", t("menu.my_address", preference.language))
 }
 
 fn get_subscribe_action_text(preference: &ChatPreference) -> String {
-    format!("🔔 {}", t("menu.subscribe", &preference.language))
+    format!("🔔 {}", t("menu.subscribe", preference.language))
 }
 
 fn get_check_address_action_text(preference: &ChatPreference) -> String {
-    format!("📝 {}", t("menu.check_address", &preference.language))
+    format!("📝 {}", t("menu.check_address", preference.language))
 }
 
 fn get_unsubscribe_action_text(preference: &ChatPreference) -> String {
-    format!("🔕 {}", t("menu.unsubscribe", &preference.language))
+    format!("🔕 {}", t("menu.unsubscribe", preference.language))
 }
 
 fn get_full_menu(preference: &ChatPreference) -> KeyboardMarkup {
@@ -62,28 +64,28 @@ fn get_full_menu(preference: &ChatPreference) -> KeyboardMarkup {
 fn get_settings_actions(preference: &ChatPreference) -> InlineKeyboardMarkup {
     InlineKeyboardMarkup::new(vec![vec![
         InlineKeyboardButton::new(
-            format!("🌎 {}", t("settings.language", &preference.language)),
+            format!("🌎 {}", t("settings.language", preference.language)),
             InlineKeyboardButtonKind::CallbackData("change_language".to_string()),
         ),
         InlineKeyboardButton::new(
-            format!("🔔 {}", t("settings.notification", &preference.language)),
+            format!("🔔 {}", t("settings.notification", preference.language)),
             InlineKeyboardButtonKind::CallbackData("notification_settings".to_string()),
         ),
     ]])
 }
 
 fn get_language_actions(preference: &ChatPreference, with_back_button: Option<bool>) -> InlineKeyboardMarkup {
-    let english = if preference.language == "en" {
+    let english = if preference.language == Language::En {
         "✅ 🇺🇸 English"
     } else {
         "🇺🇸 English"
     };
-    let russian = if preference.language == "ru" {
+    let russian = if preference.language == Language::Ru {
         "✅ 🇷🇺 Русский"
     } else {
         "🇷🇺 Русский"
     };
-    let serbian = if preference.language == "rs" {
+    let serbian = if preference.language == Language::Rs {
         "✅ 🇷🇸 Српски"
     } else {
         "🇷🇸 Српски"
@@ -108,7 +110,7 @@ fn get_language_actions(preference: &ChatPreference, with_back_button: Option<bo
 
     if Some(true) == with_back_button {
         languages.push(vec![InlineKeyboardButton::new(
-            format!("🔙 {}", t("settings.back", &preference.language)),
+            format!("🔙 {}", t("settings.back", preference.language)),
             InlineKeyboardButtonKind::CallbackData("languages_back".to_string()),
         )])
     }
@@ -141,7 +143,7 @@ fn get_update_language_code(update: &Update) -> String {
 }
 
 async fn get_chat_preference(
-    chat_preference_repository: &ChatPreferenceRepository<'_>,
+    chat_preference_repository: &PgChatPreference<'_>,
     update: &Update,
     chat_id: i64,
 ) -> Result<ChatPreference> {
@@ -161,7 +163,7 @@ async fn get_chat_preference(
 
         let new_chat_preference = NewChatPreference {
             chat_id,
-            language: language_code.to_owned(),
+            language: std::str::FromStr::from_str(&language_code)?,
         };
         chat_preference_repository
             .insert(new_chat_preference)
@@ -188,11 +190,10 @@ pub async fn handle_update(update: &Update) -> Result<()> {
 
     let subscriptions_repository = SubscriptionsRepository::new(&sqlx_database_client);
     let message_repository = MessageRepository::new(&sqlx_database_client);
-    let chat_preference_repository = ChatPreferenceRepository::new(&sqlx_database_client);
+    let chat_preference_repository = PgChatPreference::new(&sqlx_database_client);
 
     subscriptions_repository.create_table().await?;
     message_repository.create_table().await?;
-    chat_preference_repository.create_table().await?;
 
     debug!("Got update: {update:?}");
 
@@ -207,12 +208,12 @@ pub async fn handle_update(update: &Update) -> Result<()> {
 
                 if text == "/start" {
                     message_type = "command";
-                    bot.send_message(chat_id, t("start", &chat_preference.language))
+                    bot.send_message(chat_id, t("start", chat_preference.language))
                         .reply_markup(get_full_menu(&chat_preference))
                         .await?;
                 } else if text == get_check_address_action_text(&chat_preference) {
                     message_type = "command";
-                    bot.send_message(chat_id, t("check_address_text", &chat_preference.language))
+                    bot.send_message(chat_id, t("check_address_text", chat_preference.language))
                         .await?;
                 } else if text == get_subscribe_action_text(&chat_preference) {
                     message_type = "command";
@@ -261,7 +262,7 @@ pub async fn handle_update(update: &Update) -> Result<()> {
                             .await?;
                     }
                 } else if text == get_settings_action_text(&chat_preference) {
-                    bot.send_message(chat_id, t("settings.text", &chat_preference.language))
+                    bot.send_message(chat_id, t("settings.text", chat_preference.language))
                         .reply_markup(get_settings_actions(&chat_preference))
                         .await?;
                 } else {
@@ -283,7 +284,7 @@ pub async fn handle_update(update: &Update) -> Result<()> {
                                 })
                                 .await?;
 
-                            bot.send_message(chat_id, t("subscribed", &chat_preference.language))
+                            bot.send_message(chat_id, t("subscribed", chat_preference.language))
                                 .await?;
                         } else if last_command_text == get_unsubscribe_action_text(&chat_preference) {
                             let subscriptions = subscriptions_repository
@@ -376,31 +377,32 @@ pub async fn handle_update(update: &Update) -> Result<()> {
                         bot.edit_message_text(
                             chat_id,
                             message.id,
-                            t("settings.change_language_text", &chat_preference.language),
+                            t("settings.change_language_text", chat_preference.language),
                         )
                         .reply_markup(get_language_actions(&chat_preference, Some(true)))
                         .await?;
                     } else if data.starts_with("change_language_") {
-                        let new_language = data.replace("change_language_", "");
+                        let new_language = Language::from_str(&data.replace("change_language_", ""))
+                            .with_context(|| format!("invalid chat language command: {data}"))?;
 
                         if new_language == chat_preference.language {
                             return Ok(());
                         }
 
                         chat_preference_repository
-                            .update_language(chat_id_i64, new_language.to_owned())
+                            .update_language(chat_id_i64, new_language)
                             .await?;
                         chat_preference = get_chat_preference(&chat_preference_repository, update, chat_id_i64).await?;
 
                         bot.edit_message_text(
                             chat_id,
                             message.id,
-                            t("settings.change_language_text", &chat_preference.language),
+                            t("settings.change_language_text", chat_preference.language),
                         )
                         .reply_markup(get_language_actions(&chat_preference, None))
                         .await?;
 
-                        bot.send_message(chat_id, t("settings.language_changed", &new_language))
+                        bot.send_message(chat_id, t("settings.language_changed", new_language))
                             .reply_markup(get_full_menu(&chat_preference))
                             .await?;
                     } else if data == "notification_settings" {
@@ -409,7 +411,7 @@ pub async fn handle_update(update: &Update) -> Result<()> {
                         bot.edit_message_text(
                             chat_id,
                             message.id,
-                            t("settings.text", &chat_preference.language),
+                            t("settings.text", chat_preference.language),
                         )
                         .reply_markup(get_settings_actions(&chat_preference))
                         .await?;
@@ -444,7 +446,7 @@ pub async fn notify_addresses(addresses: Vec<String>) -> Result<()> {
 
     for subscription in subscriptions {
         let chat_id = subscription.chat_id;
-        let chat_preference_repository = ChatPreferenceRepository::new(&sqlx_database_client);
+        let chat_preference_repository = PgChatPreference::new(&sqlx_database_client);
         let chat_preference = chat_preference_repository
             .find_one_by_chat_id(chat_id)
             .await?;
@@ -454,7 +456,7 @@ pub async fn notify_addresses(addresses: Vec<String>) -> Result<()> {
                 chat_id,
                 _t!(
                     "shutdown_warning",
-                    locale = &chat_preference.language,
+                    locale = chat_preference.language.as_ref(),
                     address = subscription.address
                 )
                 .escape_markdown()

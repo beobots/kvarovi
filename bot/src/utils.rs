@@ -1,11 +1,12 @@
+use crate::preferences::Language;
 use rust_i18n::t as _t;
 
 pub trait Escape {
     fn escape_markdown(&self) -> String;
 }
 
-pub fn t(key: &str, locale: &str) -> String {
-    _t!(key, locale = locale).escape_markdown()
+pub fn t(key: &str, locale: Language) -> String {
+    _t!(key, locale = locale.as_ref()).escape_markdown()
 }
 
 pub fn escape_markdown(text: &str) -> String {
