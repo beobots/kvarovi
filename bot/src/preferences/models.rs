@@ -1,7 +1,7 @@
 use anyhow::anyhow;
 use std::str::FromStr;
 
-#[derive(Clone, Copy, PartialEq, sqlx::Type)]
+#[derive(Clone, Copy, PartialEq, sqlx::Type, Debug)]
 pub enum Language {
     En,
     Ru,
