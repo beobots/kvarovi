@@ -33,67 +33,67 @@ Resources:
         Name: chat_id
         Type: Number
 
-#  ElectroCollector:
-#    Type: AWS::Serverless::Function
-#    Metadata:
-#      BuildMethod: rust-cargolambda
-#      BuildProperties:
-#        Binary: electro_collector
-#      BuildArchitecture: x86_64
-#    Properties:
-#      CodeUri: ./
-#      Handler: bootstrap
-#      Runtime: provided.al2
-#      Tracing: Active
-#      Events:
-#        ScheduleEvent:
-#          Type: ScheduleV2
-#          Properties:
-#            ScheduleExpression: "rate(1 hour)"
-#            RetryPolicy:
-#              MaximumRetryAttempts: 3
-#      Environment:
-#        Variables:
-#          RAW_DATA_TABLE_NAME: !Ref RawDataTable
-#      Policies:
-#        - DynamoDBCrudPolicy:
-#            TableName: !Ref RawDataTable
-#        - CloudWatchLambdaInsightsExecutionRolePolicy
-#
-#  ElectroParser:
-#    Type: AWS::Serverless::Function
-#    Metadata:
-#      BuildMethod: rust-cargolambda
-#      BuildProperties:
-#        Binary: electro_parser
-#      BuildArchitecture: x86_64
-#    Properties:
-#      CodeUri: ./
-#      Handler: bootstrap
-#      Runtime: provided.al2
-#      Tracing: Active
-#      Events:
-#        ScheduleEvent:
-#          Type: ScheduleV2
-#          Properties:
-#            ScheduleExpression: "rate(1 hour)"
-#            RetryPolicy:
-#              MaximumRetryAttempts: 3
-#      Environment:
-#        Variables:
-#          RAW_DATA_TABLE_NAME: !Ref RawDataTable
-#          DATA_TABLE_NAME: !Ref DataTable
-#      Policies:
-#        - DynamoDBCrudPolicy:
-#            TableName: !Ref RawDataTable
-#        - DynamoDBCrudPolicy:
-#            TableName: !Ref DataTable
-#        - CloudWatchLambdaInsightsExecutionRolePolicy
+  ElectroCollector:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: rust-cargolambda
+      BuildProperties:
+        Binary: electro_collector
+      BuildArchitecture: x86_64
+    Properties:
+      CodeUri: ./
+      Handler: bootstrap
+      Runtime: provided.al2
+      Tracing: Active
+      Events:
+        ScheduleEvent:
+          Type: ScheduleV2
+          Properties:
+            ScheduleExpression: "rate(1 hour)"
+            RetryPolicy:
+              MaximumRetryAttempts: 3
+      Environment:
+        Variables:
+          RAW_DATA_TABLE_NAME: !Ref RawDataTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref RawDataTable
+        - CloudWatchLambdaInsightsExecutionRolePolicy
+
+  ElectroParser:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: rust-cargolambda
+      BuildProperties:
+        Binary: electro_parser
+      BuildArchitecture: x86_64
+    Properties:
+      CodeUri: ./
+      Handler: bootstrap
+      Runtime: provided.al2
+      Tracing: Active
+      Events:
+        ScheduleEvent:
+          Type: ScheduleV2
+          Properties:
+            ScheduleExpression: "rate(1 hour)"
+            RetryPolicy:
+              MaximumRetryAttempts: 3
+      Environment:
+        Variables:
+          RAW_DATA_TABLE_NAME: !Ref RawDataTable
+          DATA_TABLE_NAME: !Ref DataTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref RawDataTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref DataTable
+        - CloudWatchLambdaInsightsExecutionRolePolicy
 
 Outputs:
-#  ElectroCollector:
-#    Description: "Collect electro time tables"
-#    Value: !GetAtt ElectroCollector.Arn
+  ElectroCollector:
+    Description: "Collect electro time tables"
+    Value: !GetAtt ElectroCollector.Arn
   RawDataTable:
     Description: "DynamoDB table name"
     Value: !GetAtt RawDataTable.Arn
