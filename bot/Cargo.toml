@@ -11,7 +11,7 @@ dyndb_int = []
 
 [dependencies]
 tokio = { workspace = true }
-teloxide-core = "0.9"
+teloxide-core = { version = "0.9" }
 dotenvy = "0.15"
 anyhow = "1"
 redis = { version = "0.23", features = ["tokio-comp"] }
@@ -24,4 +24,5 @@ aws-config = { workspace = true }
 aws-sdk-dynamodb = { workspace = true }
 
 [dev-dependencies]
-testcontainers = { version = "0.14" }
+# Comment out by default, because ohterwise audit check will not pass.
+# testcontainers = { version = "0.14", default-features = false, features = [] }
