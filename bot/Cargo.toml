@@ -22,8 +22,6 @@ electricity = { path = "../electricity" }
 tracing = { workspace = true }
 aws-config = { workspace = true }
 aws-sdk-dynamodb = { workspace = true }
-uuid = { workspace = true }
-chrono = { workspace = true }
 
 [dev-dependencies]
 testcontainers = { version = "0.14" }

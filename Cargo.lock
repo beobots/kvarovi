@@ -562,7 +562,6 @@ dependencies = [
  "async-trait",
  "aws-config",
  "aws-sdk-dynamodb",
- "chrono",
  "dotenvy",
  "electricity",
  "redis",
@@ -572,7 +571,6 @@ dependencies = [
  "testcontainers",
  "tokio",
  "tracing",
- "uuid",
 ]
 
 [[package]]
