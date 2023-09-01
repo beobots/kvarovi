@@ -1,7 +1,9 @@
 use anyhow::anyhow;
 use std::str::FromStr;
 
-#[derive(Clone, Copy, PartialEq, sqlx::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, sqlx::Type)]
+#[sqlx(type_name = "language_type")]
+#[sqlx(rename_all = "lowercase")]
 pub enum Language {
     En,
     Ru,
@@ -31,7 +33,7 @@ impl FromStr for Language {
     }
 }
 
-#[derive(sqlx::FromRow)]
+#[derive(Clone, sqlx::FromRow)]
 pub struct ChatPreference {
     pub id: i32,
     pub chat_id: i64,
