@@ -1,4 +1,5 @@
-use crate::preferences::*;
+use crate::preferences::{self, *};
+use crate::repositories::message_repository::MessageType;
 use crate::utils::{escape_markdown, t};
 use crate::{
     repositories::{
@@ -16,13 +17,11 @@ use std::str::FromStr;
 use teloxide_core::{
     prelude::*,
     types::{
-        InlineKeyboardButton, InlineKeyboardButtonKind, InlineKeyboardMarkup, KeyboardButton, KeyboardMarkup,
+        ChatId, InlineKeyboardButton, InlineKeyboardButtonKind, InlineKeyboardMarkup, KeyboardButton, KeyboardMarkup,
         ParseMode, Update, UpdateKind,
     },
 };
 use tracing::debug;
-
-const SUPPORTED_LANGUAGES: [&str; 3] = ["en", "ru", "rs"];
 
 fn get_settings_action_text(preference: &ChatPreference) -> String {
     format!("⚙️ {}", t("menu.settings", preference.language))
@@ -128,13 +127,13 @@ async fn get_sqlx_database_client() -> Result<sqlx::PgPool> {
     Ok(pool)
 }
 
-fn get_update_language_code(update: &Update) -> String {
-    let mut language_code = "en".to_string();
+fn get_update_language_code(update: &Update) -> Language {
+    let mut language_code = Language::En;
 
     if let UpdateKind::Message(message) = &update.kind {
         if let Some(user) = &message.from() {
             if let Some(language_code_option) = &user.language_code {
-                language_code = language_code_option.to_string();
+                language_code = Language::from_str(language_code_option).unwrap_or(Language::En);
             }
         }
     }
@@ -142,11 +141,14 @@ fn get_update_language_code(update: &Update) -> String {
     language_code
 }
 
-async fn get_chat_preference(
-    chat_preference_repository: &PgChatPreference<'_>,
+async fn get_chat_preference<T>(
+    chat_preference_repository: &mut T,
     update: &Update,
     chat_id: i64,
-) -> Result<ChatPreference> {
+) -> Result<ChatPreference>
+where
+    T: preferences::Repository,
+{
     let chat_preference = chat_preference_repository
         .find_one_by_chat_id(chat_id)
         .await?;
@@ -155,15 +157,10 @@ async fn get_chat_preference(
         Ok(chat_preference)
     } else {
         let language_code = get_update_language_code(update);
-        let language_code = if SUPPORTED_LANGUAGES.contains(&language_code.as_str()) {
-            language_code
-        } else {
-            "en".to_string()
-        };
 
         let new_chat_preference = NewChatPreference {
             chat_id,
-            language: std::str::FromStr::from_str(&language_code)?,
+            language: language_code,
         };
         chat_preference_repository
             .insert(new_chat_preference)
@@ -184,13 +181,16 @@ async fn get_chat_preference(
     }
 }
 
-pub async fn handle_update(update: &Update) -> Result<()> {
+pub async fn handle_update<T>(
+    update: &Update,
+    subscriptions_repository: SubscriptionsRepository<'_>,
+    message_repository: MessageRepository<'_>,
+    chat_preference_repository: &mut T,
+) -> Result<()>
+where
+    T: preferences::Repository,
+{
     let bot = Bot::from_env().parse_mode(ParseMode::MarkdownV2);
-    let sqlx_database_client = get_sqlx_database_client().await?;
-
-    let subscriptions_repository = SubscriptionsRepository::new(&sqlx_database_client);
-    let message_repository = MessageRepository::new(&sqlx_database_client);
-    let chat_preference_repository = PgChatPreference::new(&sqlx_database_client);
 
     subscriptions_repository.create_table().await?;
     message_repository.create_table().await?;
@@ -201,22 +201,22 @@ pub async fn handle_update(update: &Update) -> Result<()> {
         UpdateKind::Message(message) => {
             let chat_id = message.chat.id;
             let ChatId(chat_id_i64) = chat_id;
-            let chat_preference = get_chat_preference(&chat_preference_repository, update, chat_id_i64).await?;
+            let chat_preference = get_chat_preference(chat_preference_repository, update, chat_id_i64).await?;
 
             if let Some(text) = message.text() {
-                let mut message_type = "text";
+                let mut message_type = MessageType::Text;
 
                 if text == "/start" {
-                    message_type = "command";
+                    message_type = MessageType::Command;
                     bot.send_message(chat_id, t("start", chat_preference.language))
                         .reply_markup(get_full_menu(&chat_preference))
                         .await?;
                 } else if text == get_check_address_action_text(&chat_preference) {
-                    message_type = "command";
+                    message_type = MessageType::Command;
                     bot.send_message(chat_id, t("check_address_text", chat_preference.language))
                         .await?;
                 } else if text == get_subscribe_action_text(&chat_preference) {
-                    message_type = "command";
+                    message_type = MessageType::Command;
                     bot.send_message(chat_id, "Введите ваш адрес").await?;
                 } else if text == get_unsubscribe_action_text(&chat_preference) {
                     let subscriptions = subscriptions_repository
@@ -231,7 +231,7 @@ pub async fn handle_update(update: &Update) -> Result<()> {
                             addresses.push_str(&format!("\\[{}\\] {}\n", index, address));
                         }
 
-                        message_type = "command";
+                        message_type = MessageType::Command;
                         bot.send_message(
                             chat_id,
                             format!("Выберите адреса, которые хотите отписать:\n{}", addresses),
@@ -241,7 +241,7 @@ pub async fn handle_update(update: &Update) -> Result<()> {
                         bot.send_message(chat_id, "У вас нет подписок").await?;
                     }
                 } else if text == get_my_addresses_action_text(&chat_preference) {
-                    message_type = "command";
+                    message_type = MessageType::Command;
 
                     let subscriptions = subscriptions_repository
                         .find_all_by_chat_id(chat_id_i64)
@@ -336,7 +336,7 @@ pub async fn handle_update(update: &Update) -> Result<()> {
                     .insert(NewMessage {
                         chat_id: chat_id_i64,
                         text: text.to_owned(),
-                        message_type: message_type.to_owned(),
+                        message_type: message_type.as_ref().to_owned(),
                     })
                     .await?;
             }
@@ -370,7 +370,7 @@ pub async fn handle_update(update: &Update) -> Result<()> {
             if let Some(message) = &query.message {
                 let chat_id = message.chat.id;
                 let ChatId(chat_id_i64) = chat_id;
-                let mut chat_preference = get_chat_preference(&chat_preference_repository, update, chat_id_i64).await?;
+                let mut chat_preference = get_chat_preference(chat_preference_repository, update, chat_id_i64).await?;
 
                 if let Some(data) = &query.data {
                     if data == "change_language" {
@@ -392,7 +392,7 @@ pub async fn handle_update(update: &Update) -> Result<()> {
                         chat_preference_repository
                             .update_language(chat_id_i64, new_language)
                             .await?;
-                        chat_preference = get_chat_preference(&chat_preference_repository, update, chat_id_i64).await?;
+                        chat_preference = get_chat_preference(chat_preference_repository, update, chat_id_i64).await?;
 
                         bot.edit_message_text(
                             chat_id,
@@ -467,4 +467,56 @@ pub async fn notify_addresses(addresses: Vec<String>) -> Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test;
+
+    #[tokio::test]
+    async fn test_get_existing_chat_preference() {
+        let mut repository = test::preferences::TestChatPreference::new();
+
+        repository.set_chat_preferences(vec![
+            ChatPreference {
+                id: 4,
+                chat_id: 4,
+                language: Language::En,
+            },
+            ChatPreference {
+                id: 5,
+                chat_id: 5,
+                language: Language::Ru,
+            },
+        ]);
+
+        let update_mock = test::mock::BotUpdateMock::new();
+        let update = update_mock.get_update();
+
+        let found_chat_preference = get_chat_preference(&mut repository, &update, 5)
+            .await
+            .unwrap();
+
+        assert_eq!(found_chat_preference.chat_id, 5);
+        assert_eq!(found_chat_preference.id, 5);
+        assert_eq!(found_chat_preference.language, Language::Ru);
+    }
+
+    #[tokio::test]
+    async fn test_get_created_chat_preference() {
+        let mut repository = test::preferences::TestChatPreference::new();
+
+        let mut update_mock = test::mock::BotUpdateMock::new();
+        update_mock.set_user_language(Language::Rs);
+        let update = update_mock.get_update();
+
+        let found_chat_preference = get_chat_preference(&mut repository, &update, 5)
+            .await
+            .unwrap();
+
+        assert_eq!(found_chat_preference.chat_id, 5);
+        assert_eq!(found_chat_preference.id, 1);
+        assert_eq!(found_chat_preference.language, Language::Rs);
+    }
 }
