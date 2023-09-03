@@ -5,9 +5,13 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+default = []
+dyndb_int = []
+
 [dependencies]
 tokio = { workspace = true }
-teloxide-core = "0.9"
+teloxide-core = { version = "0.9" }
 dotenvy = "0.15"
 anyhow = "1"
 redis = { version = "0.23", features = ["tokio-comp"] }
@@ -16,4 +20,11 @@ sqlx = { version = "0.7", features = [ "runtime-tokio", "postgres" ] }
 async-trait = { version = "0.1"}
 electricity = { path = "../electricity" }
 tracing = { workspace = true }
-chrono = { version = "0.4"}
+aws-config = { workspace = true }
+aws-sdk-dynamodb = { workspace = true }
+
+[dev-dependencies]
+# Comment out by default, because ohterwise audit check will not pass.
+testcontainers = { git = "https://github.com/testcontainers/testcontainers-rs", rev = "0f2c985160e51a200cfc847097c15b8d85ed7df1", default-features = false, features = [] }
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+

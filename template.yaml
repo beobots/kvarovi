@@ -17,12 +17,21 @@ Resources:
       PrimaryKey:
         Name: id
         Type: String
+
   DataTable:
     Type: AWS::Serverless::SimpleTable
     Properties:
       PrimaryKey:
         Name: id
         Type: String
+
+  ChatPreferences:
+    Type: AWS::Serverless::SimpleTable
+    Properties:
+      TableName: chat_preferences
+      PrimaryKey:
+        Name: chat_id
+        Type: Number
 
   ElectroCollector:
     Type: AWS::Serverless::Function
@@ -91,3 +100,6 @@ Outputs:
   DataTable:
     Description: "DynamoDB table name"
     Value: !GetAtt DataTable.Arn
+  ChatPreferences:
+    Description: "DynamoDB table name"
+    Value: !GetAtt ChatPreferences.Arn
