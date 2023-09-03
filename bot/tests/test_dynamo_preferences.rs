@@ -12,7 +12,7 @@ use testcontainers::*;
 #[tokio::test]
 async fn testing_dynamodb() {
     let docker = clients::Cli::default();
-    let image = images::generic::GenericImage::new("amazon/dynamodb-local", "2.0.0")
+    let image = GenericImage::new("amazon/dynamodb-local", "2.0.0")
         .with_exposed_port(8000)
         .with_wait_for(WaitFor::message_on_stdout("Initializing DynamoDB Local"));
     let node = docker.run(image);
