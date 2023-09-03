@@ -2,7 +2,7 @@ use anyhow::anyhow;
 use std::str::FromStr;
 
 #[derive(Debug, Clone, Copy, PartialEq, sqlx::Type)]
-#[sqlx(type_name = "language_type", )]
+#[sqlx(type_name = "language_type")]
 #[sqlx(rename_all = "lowercase")]
 pub enum Language {
     En,
