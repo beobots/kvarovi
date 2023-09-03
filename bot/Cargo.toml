@@ -26,3 +26,4 @@ aws-sdk-dynamodb = { workspace = true }
 [dev-dependencies]
 # Comment out by default, because ohterwise audit check will not pass.
 # testcontainers = { version = "0.14", default-features = false, features = [] }
+chrono = { version = "0.4"}

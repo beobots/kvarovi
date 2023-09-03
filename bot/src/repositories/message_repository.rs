@@ -15,6 +15,15 @@ pub enum MessageType {
     Command,
 }
 
+impl AsRef<str> for MessageType {
+    fn as_ref(&self) -> &str {
+        match self {
+            MessageType::Text => "text",
+            MessageType::Command => "command",
+        }
+    }
+}
+
 #[derive(sqlx::FromRow, Debug)]
 pub struct Message {
     pub id: i32,

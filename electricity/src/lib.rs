@@ -65,12 +65,12 @@ impl Display for ElectricityFailuresData {
 
 #[derive(Debug)]
 pub struct ElectricityFailuresRawData {
-    id: String,
-    date: String,
-    url: String,
-    html: String,
-    hash: String,
-    version: i32,
+    pub id: String,
+    pub date: String,
+    pub url: String,
+    pub html: String,
+    pub hash: String,
+    pub version: i32,
 }
 
 impl Display for ElectricityFailuresRawData {
@@ -404,7 +404,7 @@ async fn find_electricity_failure_raw_data_by_id(
     Err(anyhow!("Item not found"))
 }
 
-fn parse_raw_data_to_data(data: &ElectricityFailuresRawData) -> Result<Vec<ElectricityFailuresData>> {
+pub fn parse_raw_data_to_data(data: &ElectricityFailuresRawData) -> Result<Vec<ElectricityFailuresData>> {
     let page_html = data.html.to_owned();
     let header: String = get_page_header(&page_html);
     let date = header
