@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     name: tests / stable
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Install Rust Toolchain Components
         uses: actions-rs/toolchain@v1
         with:
@@ -27,7 +27,7 @@ jobs:
       pull-requests: read
     name: stable / coverage
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Install Rust Toolchain Components
         uses: actions-rs/toolchain@v1
         with:
