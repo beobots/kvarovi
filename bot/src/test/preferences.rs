@@ -61,7 +61,6 @@ impl Repository for TestChatPreference {
             .map(|chat_preference| {
                 if chat_preference.chat_id == chat_id {
                     ChatPreference {
-                        id: chat_preference.id,
                         chat_id: chat_preference.chat_id,
                         language,
                     }
