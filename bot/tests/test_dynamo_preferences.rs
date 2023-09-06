@@ -4,8 +4,8 @@ use aws_sdk_dynamodb::types::{
     AttributeDefinition, KeySchemaElement, KeyType, ProvisionedThroughput, ScalarAttributeType,
 };
 use aws_sdk_dynamodb::Client;
+use bot::preferences::Language;
 use bot::preferences::*;
-use bot::preferences::{Language, NewChatPreference};
 use testcontainers::core::WaitFor;
 use testcontainers::*;
 
@@ -54,7 +54,7 @@ async fn testing_dynamodb() {
         .expect("failed to create a dynamodb table");
 
     client
-        .insert(NewChatPreference {
+        .insert(ChatPreference {
             chat_id: CHAT_ID,
             language: Language::Ru,
         })
