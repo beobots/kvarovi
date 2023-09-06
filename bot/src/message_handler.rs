@@ -158,7 +158,7 @@ where
     } else {
         let language_code = get_update_language_code(update);
 
-        let new_chat_preference = NewChatPreference {
+        let new_chat_preference = ChatPreference {
             chat_id,
             language: language_code,
         };

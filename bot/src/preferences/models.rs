@@ -35,12 +35,6 @@ impl FromStr for Language {
 
 #[derive(Clone, sqlx::FromRow)]
 pub struct ChatPreference {
-    pub id: i32,
-    pub chat_id: i64,
-    pub language: Language,
-}
-
-pub struct NewChatPreference {
     pub chat_id: i64,
     pub language: Language,
 }
