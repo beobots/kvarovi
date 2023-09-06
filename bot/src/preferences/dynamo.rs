@@ -1,5 +1,5 @@
 use super::repository::Repository;
-use crate::preferences::{ChatPreference, Language, NewChatPreference};
+use crate::preferences::{ChatPreference, Language};
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use aws_sdk_dynamodb::types::AttributeValue;
@@ -16,7 +16,7 @@ const VALUE_EXPR: &str = ":value";
 
 #[async_trait]
 impl Repository for Client {
-    async fn insert(&self, value: NewChatPreference) -> Result<()> {
+    async fn insert(&self, value: ChatPreference) -> Result<()> {
         let request = self
             .put_item()
             .table_name(TABLE_NAME)
@@ -42,7 +42,6 @@ impl Repository for Client {
         if let Some(item) = resp.item {
             if let Some(AttributeValue::S(attr_value)) = item.get(LANGUAGE_FIELD) {
                 Ok(Some(ChatPreference {
-                    id: 0,
                     chat_id,
                     language: Language::from_str(attr_value)?,
                 }))

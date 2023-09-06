@@ -1,6 +1,6 @@
 use std::sync::RwLock;
 
-use crate::preferences::{ChatPreference, Language, NewChatPreference, Repository};
+use crate::preferences::{ChatPreference, Language, Repository};
 use anyhow::Result;
 use async_trait::async_trait;
 
@@ -29,9 +29,8 @@ impl TestChatPreference {
 
 #[async_trait]
 impl Repository for TestChatPreference {
-    async fn insert(&self, value: NewChatPreference) -> Result<()> {
+    async fn insert(&self, value: ChatPreference) -> Result<()> {
         let new_chat_preference = ChatPreference {
-            id: 1,
             chat_id: value.chat_id,
             language: value.language,
         };
@@ -62,7 +61,6 @@ impl Repository for TestChatPreference {
             .map(|chat_preference| {
                 if chat_preference.chat_id == chat_id {
                     ChatPreference {
-                        id: chat_preference.id,
                         chat_id: chat_preference.chat_id,
                         language,
                     }

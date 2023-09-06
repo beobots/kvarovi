@@ -158,7 +158,7 @@ where
     } else {
         let language_code = get_update_language_code(update);
 
-        let new_chat_preference = NewChatPreference {
+        let new_chat_preference = ChatPreference {
             chat_id,
             language: language_code,
         };
@@ -480,12 +480,10 @@ mod tests {
 
         repository.set_chat_preferences(vec![
             ChatPreference {
-                id: 4,
                 chat_id: 4,
                 language: Language::En,
             },
             ChatPreference {
-                id: 5,
                 chat_id: 5,
                 language: Language::Ru,
             },
@@ -499,7 +497,6 @@ mod tests {
             .unwrap();
 
         assert_eq!(found_chat_preference.chat_id, 5);
-        assert_eq!(found_chat_preference.id, 5);
         assert_eq!(found_chat_preference.language, Language::Ru);
     }
 
@@ -516,7 +513,6 @@ mod tests {
             .unwrap();
 
         assert_eq!(found_chat_preference.chat_id, 5);
-        assert_eq!(found_chat_preference.id, 1);
         assert_eq!(found_chat_preference.language, Language::Rs);
     }
 }

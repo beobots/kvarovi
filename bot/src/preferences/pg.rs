@@ -1,4 +1,4 @@
-use super::models::{ChatPreference, Language, NewChatPreference};
+use super::models::{ChatPreference, Language};
 use super::repository::Repository;
 use anyhow::Result;
 use async_trait::async_trait;
@@ -16,7 +16,7 @@ impl<'a> PgChatPreference<'a> {
 
 #[async_trait]
 impl<'a> Repository for PgChatPreference<'a> {
-    async fn insert(&self, value: NewChatPreference) -> Result<()> {
+    async fn insert(&self, value: ChatPreference) -> Result<()> {
         sqlx::query("INSERT INTO preference (chat_id, language) VALUES ($1, $2)")
             .bind(value.chat_id)
             .bind(value.language)
