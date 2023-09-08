@@ -3,6 +3,7 @@ pub mod repositories;
 pub mod repository;
 pub mod utils;
 
+pub mod messages;
 pub mod preferences;
 
 #[cfg(test)]

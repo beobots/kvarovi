@@ -33,6 +33,21 @@ Resources:
         Name: chat_id
         Type: Number
 
+  Messages:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: messages
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: timestamp
+          AttributeType: N
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+        - AttributeName: timestamp
+          KeyType: RANGE
+
   ElectroCollector:
     Type: AWS::Serverless::Function
     Metadata:
