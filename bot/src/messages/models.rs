@@ -2,7 +2,7 @@ use anyhow::anyhow;
 use std::fmt::{Display, Formatter, Write};
 use std::str::FromStr;
 
-#[derive(sqlx::Type, Debug)]
+#[derive(sqlx::Type, Debug, Clone, Copy)]
 #[sqlx(type_name = "message_type", rename_all = "lowercase")]
 pub enum MessageType {
     Text,

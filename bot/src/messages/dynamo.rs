@@ -1,15 +1,14 @@
+use super::models::{Message, MessageType};
 use super::repository::Repository;
-use crate::messages::models::{Message, MessageType};
+use anyhow::anyhow;
 use anyhow::Result;
 use async_trait::async_trait;
 use aws_sdk_dynamodb::types::AttributeValue;
 use aws_sdk_dynamodb::Client;
 
 const TABLE_NAME: &str = "messages";
-
 const ID_FIELD: &str = "id";
-
-const TEXT: &str = "text";
+const TEXT_FIELD: &str = "text";
 const MESSAGE_TYPE: &str = "message_type";
 
 #[async_trait]
@@ -19,7 +18,7 @@ impl Repository for Client {
             .put_item()
             .table_name(TABLE_NAME)
             .item(ID_FIELD, make_id(message.chat_id, message.message_type))
-            .item(TEXT, AttributeValue::S(message.text.to_owned()))
+            .item(TEXT_FIELD, AttributeValue::S(message.text.to_owned()))
             .item(
                 MESSAGE_TYPE,
                 AttributeValue::S(message.message_type.as_ref().to_string()),
@@ -30,15 +29,27 @@ impl Repository for Client {
         Ok(())
     }
 
-    async fn find_last(&self, _chat_id: i64, _message_type: MessageType) -> Result<Option<Message>> {
+    async fn find_last(&self, chat_id: i64, message_type: MessageType) -> Result<Option<Message>> {
         let request = self
             .get_item()
             .table_name(TABLE_NAME)
-            .item(ID_FIELD, make_id(_chat_id, _message_type));
+            .item(ID_FIELD, make_id(chat_id, message_type));
 
         let resp = request.send().await?;
 
-        todo!()
+        if let Some(item) = resp.item {
+            if let Some(AttributeValue::S(attr_value)) = item.get(TEXT_FIELD) {
+                Ok(Some(Message {
+                    chat_id,
+                    text: attr_value,
+                    message_type,
+                }))
+            } else {
+                Err(anyhow!("language field is missing for {chat_id}"))
+            }
+        } else {
+            Ok(None)
+        }
     }
 }
 
