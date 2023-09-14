@@ -33,7 +33,7 @@ impl Repository for Client {
         let request = self
             .get_item()
             .table_name(TABLE_NAME)
-            .item(ID_FIELD, make_id(chat_id, message_type));
+            .key(ID_FIELD, make_id(chat_id, message_type));
 
         let resp = request.send().await?;
 
@@ -41,7 +41,7 @@ impl Repository for Client {
             if let Some(AttributeValue::S(attr_value)) = item.get(TEXT_FIELD) {
                 Ok(Some(Message {
                     chat_id,
-                    text: attr_value,
+                    text: attr_value.clone(),
                     message_type,
                 }))
             } else {

@@ -1,11 +1,8 @@
-use crate::preferences::{self, *};
-use crate::repositories::message_repository::MessageType;
+use crate::messages::{Message, MessageType, Repository as MessagesRepository};
+use crate::preferences::{ChatPreference, Language, PgChatPreference, Repository as PreferencesRepository};
 use crate::utils::{escape_markdown, t};
 use crate::{
-    repositories::{
-        message_repository::{MessageRepository, NewMessage, Repository as _},
-        subscription_repository::{NewSubscription, Repository as _, SubscriptionsRepository},
-    },
+    repositories::subscription_repository::{NewSubscription, Repository as _, SubscriptionsRepository},
     utils::Escape,
 };
 use anyhow::Context as _;
@@ -147,7 +144,7 @@ async fn get_chat_preference<T>(
     chat_id: i64,
 ) -> Result<ChatPreference>
 where
-    T: preferences::Repository,
+    T: PreferencesRepository,
 {
     let chat_preference = chat_preference_repository.find_one(chat_id).await?;
 
@@ -177,19 +174,19 @@ where
     }
 }
 
-pub async fn handle_update<T>(
+pub async fn handle_update<T, M>(
     update: &Update,
     subscriptions_repository: SubscriptionsRepository<'_>,
-    message_repository: MessageRepository<'_>,
+    message_repository: &mut M,
     chat_preference_repository: &mut T,
 ) -> Result<()>
 where
-    T: preferences::Repository,
+    T: PreferencesRepository,
+    M: MessagesRepository,
 {
     let bot = Bot::from_env().parse_mode(ParseMode::MarkdownV2);
 
     subscriptions_repository.create_table().await?;
-    message_repository.create_table().await?;
 
     debug!("Got update: {update:?}");
 
@@ -263,7 +260,7 @@ where
                         .await?;
                 } else {
                     let last_command = message_repository
-                        .find_one_by_chat_id(chat_id_i64, "command".to_owned())
+                        .find_last(chat_id_i64, MessageType::Command)
                         .await?;
 
                     if let Some(last_command) = last_command {
@@ -329,10 +326,10 @@ where
                 debug!("Got message: {text:?}");
 
                 message_repository
-                    .insert(NewMessage {
+                    .append(Message {
                         chat_id: chat_id_i64,
                         text: text.to_owned(),
-                        message_type: message_type.as_ref().to_owned(),
+                        message_type,
                     })
                     .await?;
             }
@@ -342,7 +339,7 @@ where
                 let longitude = location.longitude;
 
                 let last_command = message_repository
-                    .find_one_by_chat_id(chat_id_i64, "command".to_owned())
+                    .find_last(chat_id_i64, MessageType::Command)
                     .await?;
 
                 if let Some(last_command) = last_command {

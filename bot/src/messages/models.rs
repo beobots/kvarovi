@@ -1,5 +1,5 @@
 use anyhow::anyhow;
-use std::fmt::{Display, Formatter, Write};
+use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 
 #[derive(sqlx::Type, Debug, Clone, Copy)]
