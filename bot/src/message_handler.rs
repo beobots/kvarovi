@@ -176,25 +176,23 @@ where
 
 pub async fn handle_update<T, M>(
     update: &Update,
-    subscriptions_repository: SubscriptionsRepository<'_>,
-    message_repository: &mut M,
-    chat_preference_repository: &mut T,
+    subscriptions: SubscriptionsRepository<'_>,
+    messages: &mut M,
+    preferences: &mut T,
 ) -> Result<()>
 where
     T: PreferencesRepository,
     M: MessagesRepository,
 {
+    debug!(message = format!("{update:?}"), "received telegram update");
+
     let bot = Bot::from_env().parse_mode(ParseMode::MarkdownV2);
-
-    subscriptions_repository.create_table().await?;
-
-    debug!("Got update: {update:?}");
 
     match &update.kind {
         UpdateKind::Message(message) => {
             let chat_id = message.chat.id;
             let ChatId(chat_id_i64) = chat_id;
-            let chat_preference = get_chat_preference(chat_preference_repository, update, chat_id_i64).await?;
+            let chat_preference = get_chat_preference(preferences, update, chat_id_i64).await?;
 
             if let Some(text) = message.text() {
                 let mut message_type = MessageType::Text;
@@ -212,9 +210,7 @@ where
                     message_type = MessageType::Command;
                     bot.send_message(chat_id, "Введите ваш адрес").await?;
                 } else if text == get_unsubscribe_action_text(&chat_preference) {
-                    let subscriptions = subscriptions_repository
-                        .find_all_by_chat_id(chat_id_i64)
-                        .await?;
+                    let subscriptions = subscriptions.find_all_by_chat_id(chat_id_i64).await?;
 
                     if !subscriptions.is_empty() {
                         let mut addresses = String::new();
@@ -236,9 +232,7 @@ where
                 } else if text == get_my_addresses_action_text(&chat_preference) {
                     message_type = MessageType::Command;
 
-                    let subscriptions = subscriptions_repository
-                        .find_all_by_chat_id(chat_id_i64)
-                        .await?;
+                    let subscriptions = subscriptions.find_all_by_chat_id(chat_id_i64).await?;
 
                     if !subscriptions.is_empty() {
                         let mut addresses = String::new();
@@ -259,7 +253,7 @@ where
                         .reply_markup(get_settings_actions(&chat_preference))
                         .await?;
                 } else {
-                    let last_command = message_repository
+                    let last_command = messages
                         .find_last(chat_id_i64, MessageType::Command)
                         .await?;
 
@@ -270,7 +264,7 @@ where
                             bot.send_message(chat_id, "Вот информация по вашему адресу")
                                 .await?;
                         } else if last_command_text == get_subscribe_action_text(&chat_preference) {
-                            subscriptions_repository
+                            subscriptions
                                 .insert(NewSubscription {
                                     chat_id: chat_id_i64,
                                     address: text.translit().to_owned(),
@@ -280,9 +274,7 @@ where
                             bot.send_message(chat_id, t("subscribed", chat_preference.language))
                                 .await?;
                         } else if last_command_text == get_unsubscribe_action_text(&chat_preference) {
-                            let subscriptions = subscriptions_repository
-                                .find_all_by_chat_id(chat_id_i64)
-                                .await?;
+                            let subs = subscriptions.find_all_by_chat_id(chat_id_i64).await?;
 
                             let ids = text
                                 .to_owned()
@@ -295,17 +287,15 @@ where
 
                             let ids_to_remove = ids
                                 .iter()
-                                .map(|index| subscriptions[index.to_owned()].id)
+                                .map(|index| subs[index.to_owned()].id)
                                 .map(i64::from)
                                 .collect::<Vec<i64>>();
 
-                            subscriptions_repository
-                                .delete_by_ids(ids_to_remove)
-                                .await?;
+                            subscriptions.delete_by_ids(ids_to_remove).await?;
 
                             let removed_addresses = ids
                                 .iter()
-                                .map(|index| subscriptions[index.to_owned()].address.to_owned())
+                                .map(|index| subs[index.to_owned()].address.to_owned())
                                 .collect::<Vec<String>>()
                                 .join(",");
 
@@ -325,7 +315,7 @@ where
 
                 debug!("Got message: {text:?}");
 
-                message_repository
+                messages
                     .append(Message {
                         chat_id: chat_id_i64,
                         text: text.to_owned(),
@@ -338,7 +328,7 @@ where
                 let latitude = location.latitude;
                 let longitude = location.longitude;
 
-                let last_command = message_repository
+                let last_command = messages
                     .find_last(chat_id_i64, MessageType::Command)
                     .await?;
 
@@ -363,7 +353,7 @@ where
             if let Some(message) = &query.message {
                 let chat_id = message.chat.id;
                 let ChatId(chat_id_i64) = chat_id;
-                let mut chat_preference = get_chat_preference(chat_preference_repository, update, chat_id_i64).await?;
+                let mut chat_preference = get_chat_preference(preferences, update, chat_id_i64).await?;
 
                 if let Some(data) = &query.data {
                     if data == "change_language" {
@@ -382,10 +372,10 @@ where
                             return Ok(());
                         }
 
-                        chat_preference_repository
+                        preferences
                             .update_language(chat_id_i64, new_language)
                             .await?;
-                        chat_preference = get_chat_preference(chat_preference_repository, update, chat_id_i64).await?;
+                        chat_preference = get_chat_preference(preferences, update, chat_id_i64).await?;
 
                         bot.edit_message_text(
                             chat_id,
