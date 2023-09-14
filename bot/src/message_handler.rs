@@ -149,9 +149,7 @@ async fn get_chat_preference<T>(
 where
     T: preferences::Repository,
 {
-    let chat_preference = chat_preference_repository
-        .find_one_by_chat_id(chat_id)
-        .await?;
+    let chat_preference = chat_preference_repository.find_one(chat_id).await?;
 
     if let Some(chat_preference) = chat_preference {
         Ok(chat_preference)
@@ -166,9 +164,7 @@ where
             .insert(new_chat_preference)
             .await?;
 
-        let chat_preference = chat_preference_repository
-            .find_one_by_chat_id(chat_id)
-            .await?;
+        let chat_preference = chat_preference_repository.find_one(chat_id).await?;
 
         if let Some(chat_preferences) = chat_preference {
             Ok(chat_preferences)
@@ -447,9 +443,7 @@ pub async fn notify_addresses(addresses: Vec<String>) -> Result<()> {
     for subscription in subscriptions {
         let chat_id = subscription.chat_id;
         let chat_preference_repository = PgChatPreference::new(&sqlx_database_client);
-        let chat_preference = chat_preference_repository
-            .find_one_by_chat_id(chat_id)
-            .await?;
+        let chat_preference = chat_preference_repository.find_one(chat_id).await?;
 
         if let Some(chat_preference) = chat_preference {
             send_message(

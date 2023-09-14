@@ -62,7 +62,7 @@ async fn testing_dynamodb() {
         .expect("failed to insert a value into dynamodb table");
 
     let Some(res) = client
-        .find_one_by_chat_id(CHAT_ID)
+        .find_one(CHAT_ID)
         .await
         .expect("failed to connect to dynamodb to find preferences")
     else {
@@ -76,7 +76,7 @@ async fn testing_dynamodb() {
         .expect("failed to update preferences");
 
     let Some(res) = client
-        .find_one_by_chat_id(CHAT_ID)
+        .find_one(CHAT_ID)
         .await
         .expect("failed to connect to dynamodb to find updated preferences")
     else {

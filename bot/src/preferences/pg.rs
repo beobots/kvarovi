@@ -26,7 +26,7 @@ impl<'a> Repository for PgChatPreference<'a> {
         Ok(())
     }
 
-    async fn find_one_by_chat_id(&self, chat_id: i64) -> Result<Option<ChatPreference>> {
+    async fn find_one(&self, chat_id: i64) -> Result<Option<ChatPreference>> {
         let query = String::from("SELECT * FROM preference WHERE chat_id = $1");
         let subscriptions = sqlx::query_as::<_, ChatPreference>(query.as_str())
             .bind(chat_id)

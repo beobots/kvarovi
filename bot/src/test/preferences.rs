@@ -42,7 +42,7 @@ impl Repository for TestChatPreference {
         Ok(())
     }
 
-    async fn find_one_by_chat_id(&self, chat_id: i64) -> Result<Option<ChatPreference>> {
+    async fn find_one(&self, chat_id: i64) -> Result<Option<ChatPreference>> {
         let chat_preferences = self.chat_preferences();
 
         let chat_preference = chat_preferences

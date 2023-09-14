@@ -31,7 +31,7 @@ impl Repository for Client {
         Ok(())
     }
 
-    async fn find_one_by_chat_id(&self, chat_id: i64) -> Result<Option<ChatPreference>> {
+    async fn find_one(&self, chat_id: i64) -> Result<Option<ChatPreference>> {
         let request = self
             .get_item()
             .table_name(TABLE_NAME)
