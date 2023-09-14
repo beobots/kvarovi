@@ -174,6 +174,7 @@ where
     }
 }
 
+#[tracing::instrument(level = "info", skip(subscriptions, messages, preferences))]
 pub async fn handle_update<T, M>(
     update: &Update,
     subscriptions: SubscriptionsRepository<'_>,
