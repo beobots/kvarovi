@@ -28,6 +28,8 @@ electricity = { path = "../electricity" }
 tracing = { workspace = true }
 aws-config = { workspace = true }
 aws-sdk-dynamodb = { workspace = true }
+itertools = { workspace = true }
+uuid = { version = "1.4.1", features = ["v4"] }
 
 [dev-dependencies]
 # Comment out by default, because ohterwise audit check will not pass.

@@ -1,6 +1,7 @@
 pub mod message_handler;
 pub mod repositories;
 pub mod repository;
+mod subscriptions;
 pub mod utils;
 
 pub mod messages;
