@@ -596,7 +596,6 @@ dependencies = [
  "testcontainers",
  "tokio",
  "tracing",
- "uuid",
 ]
 
 [[package]]
