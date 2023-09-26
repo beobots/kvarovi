@@ -1,8 +1,8 @@
 use super::models::{NewSubscription, Subscription};
 use super::Repository;
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, bail, Result};
 use async_trait::async_trait;
-use aws_sdk_dynamodb::types::{AttributeValue, TransactWriteItem, Update};
+use aws_sdk_dynamodb::types::{AttributeValue, ComparisonOperator, Condition, TransactWriteItem, Update};
 use aws_sdk_dynamodb::Client;
 
 static TABLE_NAME: &str = "subscriptions";
@@ -73,8 +73,51 @@ impl Repository for Client {
         }
     }
 
-    async fn find_all_by_addresses(&self, addresses: Vec<String>) -> anyhow::Result<Vec<Subscription>> {
-        todo!()
+    async fn find_all_by_addresses(&self, addresses: Vec<String>) -> Result<Vec<Subscription>> {
+        let addresses_attrs = addresses
+            .into_iter()
+            .map(|it| AttributeValue::S(it))
+            .collect();
+
+        let cond = Condition::builder()
+            .comparison_operator(ComparisonOperator::Eq)
+            .set_attribute_value_list(Some(addresses_attrs))
+            .build();
+
+        let request = self
+            .query()
+            .table_name(TABLE_NAME_INV)
+            .key_conditions(ADDRESSES_FIELD, cond);
+
+        let response = request.send().await?;
+
+        let items = response.items.unwrap_or_default();
+        let mut result = Vec::new();
+        for item in items {
+            let address = if let Some(AttributeValue::S(address)) = item.get(ADDRESSES_FIELD) {
+                address.clone()
+            } else {
+                bail!("\"{ADDRESSES_FIELD}\" field is missing in the table \"{TABLE_NAME_INV}\"");
+            };
+
+            if let Some(AttributeValue::Ns(chat_ids)) = item.get(CHAT_IDS_FIELD) {
+                result.extend(
+                    chat_ids
+                        .iter()
+                        .flat_map(|it| it.parse::<i64>().ok())
+                        .enumerate()
+                        .map(|(i, it)| Subscription {
+                            id: it + i as i64,
+                            chat_id: it,
+                            address: address.clone(),
+                        }),
+                );
+            } else {
+                bail!("\"{CHAT_IDS_FIELD}\" field is missing in the table \"{TABLE_NAME_INV}\"");
+            }
+        }
+
+        Ok(result)
     }
 
     async fn delete_by_ids(&self, ids: Vec<i64>) -> anyhow::Result<()> {

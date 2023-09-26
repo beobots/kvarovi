@@ -1,4 +1,5 @@
 #![cfg(feature = "dyndb_int")]
+
 use aws_config::ConfigLoader;
 use aws_sdk_dynamodb::types::{
     AttributeDefinition, KeySchemaElement, KeyType, ProvisionedThroughput, ScalarAttributeType,
@@ -6,6 +7,8 @@ use aws_sdk_dynamodb::types::{
 use aws_sdk_dynamodb::Client;
 use bot::subscriptions::*;
 use itertools::Itertools;
+use std::error::Error;
+use testcontainers::clients::Cli;
 use testcontainers::core::WaitFor;
 use testcontainers::*;
 
@@ -29,6 +32,61 @@ async fn testing_subscriptions_dynamodb_access() {
 
     let client = Client::new(&config);
 
+    create_db_tables(&client).await.expect("create DB tables");
+
+    client
+        .append(NewSubscription {
+            chat_id: CHAT_ID_1,
+            address: "first address".to_string(),
+        })
+        .await
+        .expect("add first address to DB");
+
+    client
+        .append(NewSubscription {
+            chat_id: CHAT_ID_1,
+            address: "second address".to_string(),
+        })
+        .await
+        .expect("add second address to DB");
+
+    client
+        .append(NewSubscription {
+            chat_id: CHAT_ID_2,
+            address: "fist address".to_string(),
+        })
+        .await
+        .expect("add third address to DB");
+
+    let res = client.find_all_by_chat_id(CHAT_ID_1 + 10).await;
+    assert!(res.is_err());
+
+    let res = client
+        .find_all_by_chat_id(CHAT_ID_1)
+        .await
+        .expect("failed to get CHAT_ID_1 addresses");
+    assert_eq!(res.len(), 2);
+
+    let expected: Vec<String> = vec!["first address".to_string(), "second address".to_string()]
+        .into_iter()
+        .sorted()
+        .collect();
+    assert_eq!(
+        res.iter()
+            .map(|it| it.address.clone())
+            .sorted()
+            .collect::<Vec<_>>(),
+        expected
+    );
+
+    let subs = client
+        .find_all_by_addresses(vec!["first address".to_string()])
+        .await
+        .expect("receive address data");
+    assert_eq!(subs.len(), 2);
+}
+
+async fn create_db_tables(client: &Client) -> Result<(), Box<dyn Error>> {
     let request = client
         .create_table()
         .table_name("subscriptions")
@@ -81,48 +139,5 @@ async fn testing_subscriptions_dynamodb_access() {
         .await
         .expect("failed to create subscriptions_inv");
 
-    client
-        .append(NewSubscription {
-            chat_id: CHAT_ID_1,
-            address: "first address".to_string(),
-        })
-        .await
-        .expect("add first address to DB");
-
-    client
-        .append(NewSubscription {
-            chat_id: CHAT_ID_1,
-            address: "second address".to_string(),
-        })
-        .await
-        .expect("add second address to DB");
-
-    client
-        .append(NewSubscription {
-            chat_id: CHAT_ID_2,
-            address: "fist address".to_string(),
-        })
-        .await
-        .expect("add third address to DB");
-
-    let res = client.find_all_by_chat_id(CHAT_ID_1 + 10).await;
-    assert!(res.is_err());
-
-    let res = client
-        .find_all_by_chat_id(CHAT_ID_1)
-        .await
-        .expect("failed to get CHAT_ID_1 addresses");
-    assert_eq!(res.len(), 2);
-
-    let expected: Vec<String> = vec!["first address".to_string(), "second address".to_string()]
-        .into_iter()
-        .sorted()
-        .collect();
-    assert_eq!(
-        res.iter()
-            .map(|it| it.address.clone())
-            .sorted()
-            .collect::<Vec<_>>(),
-        expected
-    );
+    Ok(())
 }
