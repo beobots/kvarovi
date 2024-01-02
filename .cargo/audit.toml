@@ -1,0 +1,5 @@
+[advisories]
+ignore = [
+    # sqlx-mysql is not used
+    "RUSTSEC-2023-0071"
+]
