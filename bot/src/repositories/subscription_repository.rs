@@ -1,13 +1,12 @@
-use anyhow::{Ok, Result};
-use async_trait::async_trait;
+use anyhow::Result;
 use sqlx::postgres::PgPool;
+use std::future::Future;
 
-#[async_trait]
 pub trait Repository {
-    async fn insert(&self, value: NewSubscription) -> Result<()>;
-    async fn find_all_by_chat_id(&self, chat_id: i64) -> Result<Vec<Subscription>>;
-    async fn find_all_by_addresses(&self, addresses: Vec<String>) -> Result<Vec<Subscription>>;
-    async fn delete_by_ids(&self, ids: Vec<i64>) -> Result<()>;
+    fn insert(&self, value: NewSubscription) -> impl Future<Output = Result<()>> + Send;
+    fn find_all_by_chat_id(&self, chat_id: i64) -> impl Future<Output = Result<Vec<Subscription>>> + Send;
+    fn find_all_by_addresses(&self, addresses: Vec<String>) -> impl Future<Output = Result<Vec<Subscription>>> + Send;
+    fn delete_by_ids(&self, ids: Vec<i64>) -> impl Future<Output = Result<()>> + Send;
 }
 
 #[derive(sqlx::FromRow)]
@@ -49,7 +48,6 @@ impl<'a> SubscriptionsRepository<'a> {
     }
 }
 
-#[async_trait]
 impl<'a> Repository for SubscriptionsRepository<'a> {
     async fn insert(&self, value: NewSubscription) -> Result<()> {
         let query = "INSERT INTO subscriptions (chat_id, address) VALUES ($1, $2)";
@@ -76,7 +74,7 @@ impl<'a> Repository for SubscriptionsRepository<'a> {
     async fn delete_by_ids(&self, ids: Vec<i64>) -> Result<()> {
         let ids = ids
             .iter()
-            .map(|id| id.to_string())
+            .map(ToString::to_string)
             .collect::<Vec<String>>()
             .join(", ");
         let query = format!("DELETE FROM subscriptions WHERE id IN ({})", ids);

@@ -1,10 +1,9 @@
 use crate::translit::Translit;
 use addresses::Address;
-use anyhow::{anyhow, Context as _, Ok, Result};
+use anyhow::{anyhow, Context as _, Result};
 use aws_sdk_dynamodb::{types::AttributeValue, Client};
 use chrono::NaiveDate;
 use elektrodistribucija_parser::{get_content_table_html, get_page_date, get_page_header};
-use nom::Parser;
 use scraper::Selector;
 use std::collections::hash_map::DefaultHasher;
 use std::fmt::Display;
