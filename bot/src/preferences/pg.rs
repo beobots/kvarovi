@@ -1,7 +1,6 @@
 use super::models::{ChatPreference, Language};
 use super::repository::Repository;
 use anyhow::Result;
-use async_trait::async_trait;
 use sqlx::postgres::PgPool;
 
 pub struct PgChatPreference<'a> {
@@ -14,7 +13,6 @@ impl<'a> PgChatPreference<'a> {
     }
 }
 
-#[async_trait]
 impl<'a> Repository for PgChatPreference<'a> {
     async fn insert(&self, value: ChatPreference) -> Result<()> {
         sqlx::query("INSERT INTO preference (chat_id, language) VALUES ($1, $2)")

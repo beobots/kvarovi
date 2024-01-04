@@ -2,8 +2,11 @@ use super::models::{NewSubscription, Subscription};
 use super::Repository;
 use anyhow::{anyhow, bail, Result};
 use async_trait::async_trait;
-use aws_sdk_dynamodb::types::{AttributeValue, ComparisonOperator, Condition, TransactWriteItem, Update};
+use aws_sdk_dynamodb::types::{
+    AttributeValue, ComparisonOperator, Condition, KeysAndAttributes, TransactWriteItem, Update,
+};
 use aws_sdk_dynamodb::Client;
+use std::collections::HashMap;
 
 static TABLE_NAME: &str = "subscriptions";
 static TABLE_NAME_INV: &str = "subscriptions_inv";
@@ -74,24 +77,33 @@ impl Repository for Client {
     }
 
     async fn find_all_by_addresses(&self, addresses: Vec<String>) -> Result<Vec<Subscription>> {
-        let addresses_attrs = addresses
-            .into_iter()
-            .map(|it| AttributeValue::S(it))
-            .collect();
+        // FIXME: DynamoDb does not allow more than 100 items.
+        // FIXME: there is also a limit in size.
 
-        let cond = Condition::builder()
-            .comparison_operator(ComparisonOperator::Eq)
-            .set_attribute_value_list(Some(addresses_attrs))
+        let keys = KeysAndAttributes::builder()
+            .set_keys(Some(
+                addresses
+                    .into_iter()
+                    .map(|it| {
+                        let mut map = HashMap::new();
+                        map.insert(ADDRESSES_FIELD.to_string(), AttributeValue::S(it));
+                        map
+                    })
+                    .collect::<Vec<_>>(),
+            ))
             .build()?;
 
-        let request = self
-            .query()
-            .table_name(TABLE_NAME_INV)
-            .key_conditions(ADDRESSES_FIELD, cond);
+        let response = self
+            .batch_get_item()
+            .request_items(TABLE_NAME_INV, keys)
+            .send()
+            .await?;
 
-        let response = request.send().await?;
+        let items = response
+            .responses
+            .map(|x| x.get(TABLE_NAME_INV).cloned().unwrap_or_default())
+            .unwrap_or_default();
 
-        let items = response.items.unwrap_or_default();
         let mut result = Vec::new();
         for item in items {
             let address = if let Some(AttributeValue::S(address)) = item.get(ADDRESSES_FIELD) {

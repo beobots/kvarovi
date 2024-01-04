@@ -2,7 +2,6 @@ use super::models::{Message, MessageType};
 use super::repository::Repository;
 use anyhow::anyhow;
 use anyhow::Result;
-use async_trait::async_trait;
 use aws_sdk_dynamodb::types::AttributeValue;
 use aws_sdk_dynamodb::Client;
 
@@ -11,7 +10,6 @@ const ID_FIELD: &str = "id";
 const TEXT_FIELD: &str = "text";
 const MESSAGE_TYPE: &str = "message_type";
 
-#[async_trait]
 impl Repository for Client {
     async fn append(&self, message: Message) -> Result<()> {
         let request = self

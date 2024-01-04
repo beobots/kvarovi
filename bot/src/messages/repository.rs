@@ -1,9 +1,12 @@
 use super::models::{Message, MessageType};
 use anyhow::Result;
-use async_trait::async_trait;
+use std::future::Future;
 
-#[async_trait]
 pub trait Repository {
-    async fn append(&self, message: Message) -> Result<()>;
-    async fn find_last(&self, chat_id: i64, message_type: MessageType) -> Result<Option<Message>>;
+    fn append(&self, message: Message) -> impl Future<Output = Result<()>> + Send;
+    fn find_last(
+        &self,
+        chat_id: i64,
+        message_type: MessageType,
+    ) -> impl Future<Output = Result<Option<Message>>> + Send;
 }

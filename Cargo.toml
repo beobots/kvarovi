@@ -14,7 +14,7 @@ resolver = "2"
 [workspace.dependencies]
 anyhow = "1"
 aws-config = "1"
-aws-sdk-dynamodb = "1"
+aws-sdk-dynamodb = {  version = "1", features = [ "behavior-version-latest" ] }
 scraper = "0.18"
 tokio = { version = "1.15", features = ["full"] }
 futures = "0.3"

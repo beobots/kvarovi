@@ -1,9 +1,7 @@
 use super::models::{Message, MessageType};
 use super::repository::Repository;
-use async_trait::async_trait;
 use sqlx::PgPool;
 
-#[async_trait]
 impl Repository for PgPool {
     async fn append(&self, message: Message) -> anyhow::Result<()> {
         sqlx::query("INSERT INTO messages (chat_id, text, type) VALUES ($1, $2, $3)")

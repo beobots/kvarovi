@@ -1,11 +1,10 @@
 use super::models::ChatPreference;
 use crate::preferences::Language;
 use anyhow::Result;
-use async_trait::async_trait;
+use std::future::Future;
 
-#[async_trait]
 pub trait Repository {
-    async fn insert(&self, value: ChatPreference) -> Result<()>;
-    async fn find_one(&self, chat_id: i64) -> Result<Option<ChatPreference>>;
-    async fn update_language(&self, chat_id: i64, language: Language) -> Result<()>;
+    fn insert(&self, value: ChatPreference) -> impl Future<Output = Result<()>>;
+    fn find_one(&self, chat_id: i64) -> impl Future<Output = Result<Option<ChatPreference>>>;
+    fn update_language(&self, chat_id: i64, language: Language) -> impl Future<Output = Result<()>>;
 }

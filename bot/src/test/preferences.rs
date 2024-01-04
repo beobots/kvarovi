@@ -1,8 +1,6 @@
-use std::sync::RwLock;
-
 use crate::preferences::{ChatPreference, Language, Repository};
 use anyhow::Result;
-use async_trait::async_trait;
+use std::sync::RwLock;
 
 pub struct TestChatPreference {
     pub chat_preferences: RwLock<Vec<ChatPreference>>,
@@ -27,7 +25,6 @@ impl TestChatPreference {
     }
 }
 
-#[async_trait]
 impl Repository for TestChatPreference {
     async fn insert(&self, value: ChatPreference) -> Result<()> {
         let new_chat_preference = ChatPreference {

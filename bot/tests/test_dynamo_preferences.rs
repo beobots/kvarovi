@@ -34,19 +34,22 @@ async fn testing_dynamodb() {
             KeySchemaElement::builder()
                 .attribute_name("chat_id") // partition key
                 .key_type(KeyType::Hash)
-                .build(),
+                .build()
+                .unwrap(),
         )
         .attribute_definitions(
             AttributeDefinition::builder()
                 .attribute_name("chat_id")
                 .attribute_type(ScalarAttributeType::N)
-                .build(),
+                .build()
+                .unwrap(),
         )
         .provisioned_throughput(
             ProvisionedThroughput::builder()
                 .read_capacity_units(5) // adjust as necessary
                 .write_capacity_units(5) // adjust as necessary
-                .build(),
+                .build()
+                .unwrap(),
         );
     request
         .send()

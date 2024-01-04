@@ -53,7 +53,7 @@ async fn testing_subscriptions_dynamodb_access() {
     client
         .append(NewSubscription {
             chat_id: CHAT_ID_2,
-            address: "fist address".to_string(),
+            address: "first address".to_string(),
         })
         .await
         .expect("add third address to DB");
@@ -80,10 +80,14 @@ async fn testing_subscriptions_dynamodb_access() {
     );
 
     let subs = client
-        .find_all_by_addresses(vec!["first address".to_string()])
+        .find_all_by_addresses(vec![
+            "first address".to_string(),
+            "second address".to_string(),
+        ])
         .await
         .expect("receive address data");
-    assert_eq!(subs.len(), 2);
+    dbg!(&subs);
+    assert_eq!(subs.len(), 3);
 }
 
 async fn create_db_tables(client: &Client) -> Result<(), Box<dyn Error>> {
@@ -94,19 +98,19 @@ async fn create_db_tables(client: &Client) -> Result<(), Box<dyn Error>> {
             KeySchemaElement::builder()
                 .attribute_name("chat_id") // partition key
                 .key_type(KeyType::Hash)
-                .build(),
+                .build()?,
         )
         .attribute_definitions(
             AttributeDefinition::builder()
                 .attribute_name("chat_id")
                 .attribute_type(ScalarAttributeType::N)
-                .build(),
+                .build()?,
         )
         .provisioned_throughput(
             ProvisionedThroughput::builder()
                 .read_capacity_units(5) // adjust as necessary
                 .write_capacity_units(5) // adjust as necessary
-                .build(),
+                .build()?,
         );
     request
         .send()
@@ -120,19 +124,19 @@ async fn create_db_tables(client: &Client) -> Result<(), Box<dyn Error>> {
             KeySchemaElement::builder()
                 .attribute_name("addresses") // partition key
                 .key_type(KeyType::Hash)
-                .build(),
+                .build()?,
         )
         .attribute_definitions(
             AttributeDefinition::builder()
                 .attribute_name("addresses")
                 .attribute_type(ScalarAttributeType::S)
-                .build(),
+                .build()?,
         )
         .provisioned_throughput(
             ProvisionedThroughput::builder()
                 .read_capacity_units(5) // adjust as necessary
                 .write_capacity_units(5) // adjust as necessary
-                .build(),
+                .build()?,
         );
     request
         .send()

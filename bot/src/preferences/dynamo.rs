@@ -1,7 +1,6 @@
 use super::repository::Repository;
 use crate::preferences::{ChatPreference, Language};
 use anyhow::{anyhow, Result};
-use async_trait::async_trait;
 use aws_sdk_dynamodb::types::AttributeValue;
 use aws_sdk_dynamodb::Client;
 use std::str::FromStr;
@@ -14,7 +13,6 @@ const LANGUAGE_FIELD: &str = "lang";
 
 const VALUE_EXPR: &str = ":value";
 
-#[async_trait]
 impl Repository for Client {
     async fn insert(&self, value: ChatPreference) -> Result<()> {
         let request = self
