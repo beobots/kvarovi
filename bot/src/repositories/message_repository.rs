@@ -1,11 +1,14 @@
 use anyhow::{Ok, Result};
-use async_trait::async_trait;
 use sqlx::postgres::PgPool;
+use std::future::Future;
 
-#[async_trait]
 pub trait Repository {
-    async fn insert(&self, value: NewMessage) -> Result<()>;
-    async fn find_one_by_chat_id(&self, chat_id: i64, message_type: String) -> Result<Option<Message>>;
+    fn insert(&self, value: NewMessage) -> impl Future<Output = Result<()>> + Send;
+    fn find_one_by_chat_id(
+        &self,
+        chat_id: i64,
+        message_type: String,
+    ) -> impl Future<Output = Result<Option<Message>>> + Send;
 }
 
 #[derive(sqlx::Type)]
@@ -69,7 +72,6 @@ impl<'a> MessageRepository<'a> {
     }
 }
 
-#[async_trait]
 impl<'a> Repository for MessageRepository<'a> {
     async fn insert(&self, value: NewMessage) -> Result<()> {
         sqlx::query("INSERT INTO messages (chat_id, text, type) VALUES ($1, $2, $3)")

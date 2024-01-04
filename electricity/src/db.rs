@@ -41,13 +41,10 @@ pub async fn init_client() -> Result<Client> {
 
 pub async fn check_table_exists(client: &Client, name: &str) -> Result<bool> {
     let tables = client.list_tables().send().await?;
-    let exists = tables.table_names().into_iter().any(|table| {
-        if let Some(table_name) = table.get(0) {
-            return table_name.to_owned().eq(name);
-        }
-
-        false
-    });
+    let exists = tables
+        .table_names()
+        .iter()
+        .any(|table_name| table_name == name);
 
     Ok(exists)
 }
@@ -65,17 +62,17 @@ pub async fn create_table(client: &Client, table: &str, key: &str) -> Result<()>
     let ad = AttributeDefinition::builder()
         .attribute_name(&a_name)
         .attribute_type(ScalarAttributeType::S)
-        .build();
+        .build()?;
 
     let ks = KeySchemaElement::builder()
         .attribute_name(&a_name)
         .key_type(KeyType::Hash)
-        .build();
+        .build()?;
 
     let pt = ProvisionedThroughput::builder()
         .read_capacity_units(10)
         .write_capacity_units(5)
-        .build();
+        .build()?;
 
     let _ = client
         .create_table()
