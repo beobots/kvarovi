@@ -19,14 +19,14 @@ impl Repository for Client {
             .key(ADDRESSES_FIELD, AttributeValue::S(value.address.clone()))
             .update_expression(format!("ADD {CHAT_IDS_FIELD} :a"))
             .expression_attribute_values(":a", AttributeValue::Ns(vec![value.chat_id.to_string()]))
-            .build();
+            .build()?;
 
         let update = Update::builder()
             .table_name(TABLE_NAME)
             .key(CHAT_ID_FIELD, AttributeValue::N(value.chat_id.to_string()))
             .update_expression(format!("ADD {ADDRESSES_FIELD} :a"))
             .expression_attribute_values(":a", AttributeValue::Ss(vec![value.address.clone()]))
-            .build();
+            .build()?;
 
         let t1 = TransactWriteItem::builder().update(update_rev).build();
         let t2 = TransactWriteItem::builder().update(update).build();
@@ -82,7 +82,7 @@ impl Repository for Client {
         let cond = Condition::builder()
             .comparison_operator(ComparisonOperator::Eq)
             .set_attribute_value_list(Some(addresses_attrs))
-            .build();
+            .build()?;
 
         let request = self
             .query()

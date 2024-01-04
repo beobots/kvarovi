@@ -20,10 +20,10 @@ tokio = { workspace = true }
 teloxide-core = { version = "0.9" }
 dotenvy = "0.15"
 anyhow = "1"
-redis = { version = "0.23", features = [ "tokio-comp" ] }
+redis = { version = "0.24", features = ["tokio-comp"] }
 rust-i18n = { version = "2", default-features = false, features = [] }
 sqlx = { version = "0.7", features = [ "runtime-tokio", "postgres" ] }
-async-trait = { version = "0.1" }
+async-trait = { version = "0.1"}
 electricity = { path = "../electricity" }
 tracing = { workspace = true }
 aws-config = { workspace = true }

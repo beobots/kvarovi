@@ -1,6 +1,6 @@
 use crate::translit::Translit;
 use addresses::Address;
-use anyhow::{anyhow, Context as _, Ok, Result};
+use anyhow::{anyhow, Context as _, Result};
 use aws_sdk_dynamodb::{types::AttributeValue, Client};
 use chrono::NaiveDate;
 use elektrodistribucija_parser::{get_content_table_html, get_page_date, get_page_header};
@@ -192,20 +192,18 @@ async fn find_last_electricity_failure_raw_version(
     let mut last_version = 0;
     let mut last_version_hash = None;
 
-    if let Some(items) = results.items() {
-        items.iter().for_each(|item| {
-            let version = item
-                .get("version")
-                .and_then(|av| av.as_n().ok())
-                .map(|n| n.parse::<i32>().expect("failed to parse version"))
-                .context("version is missing")
-                .unwrap();
-            let hash = item.get("hash").unwrap().as_s().unwrap().to_owned();
-            if version > last_version {
-                last_version = version;
-                last_version_hash = Some(hash);
-            }
-        });
+    for items in results.items() {
+        let version = items
+            .get("version")
+            .and_then(|av| av.as_n().ok())
+            .map(|n| n.parse::<i32>().expect("failed to parse version"))
+            .context("version is missing")
+            .unwrap();
+        let hash = items.get("hash").unwrap().as_s().unwrap().to_owned();
+        if version > last_version {
+            last_version = version;
+            last_version_hash = Some(hash);
+        }
     }
 
     Ok((last_version, last_version_hash))
@@ -214,53 +212,51 @@ async fn find_last_electricity_failure_raw_version(
 pub async fn parse_all_records(client: &Client, raw_data_table_name: &str, data_table_name: &str) -> Result<()> {
     let results = client.scan().table_name(raw_data_table_name).send().await?;
 
-    if let Some(items) = results.items() {
-        for item in items {
-            let id = item
-                .get("id")
-                .and_then(|av| av.as_s().ok())
-                .map(ToOwned::to_owned)
-                .context("id is missing")?;
-            let date = item
-                .get("date")
-                .and_then(|av| av.as_s().ok())
-                .map(ToOwned::to_owned)
-                .context("date is missing")?;
-            let url = item
-                .get("url")
-                .and_then(|av| av.as_s().ok())
-                .map(ToOwned::to_owned)
-                .context("url is missing")?;
-            let html = item
-                .get("html")
-                .and_then(|av| av.as_s().ok())
-                .map(ToOwned::to_owned)
-                .context("html is missing")?;
-            let hash = item
-                .get("hash")
-                .and_then(|av| av.as_s().ok())
-                .map(ToOwned::to_owned)
-                .context("hash is missing")?;
-            let version = item
-                .get("version")
-                .and_then(|av| av.as_n().ok())
-                .map(|n| n.parse::<i32>().expect("failed to parse version"))
-                .context("version is missing")?;
+    for item in results.items() {
+        let id = item
+            .get("id")
+            .and_then(|av| av.as_s().ok())
+            .map(ToOwned::to_owned)
+            .context("id is missing")?;
+        let date = item
+            .get("date")
+            .and_then(|av| av.as_s().ok())
+            .map(ToOwned::to_owned)
+            .context("date is missing")?;
+        let url = item
+            .get("url")
+            .and_then(|av| av.as_s().ok())
+            .map(ToOwned::to_owned)
+            .context("url is missing")?;
+        let html = item
+            .get("html")
+            .and_then(|av| av.as_s().ok())
+            .map(ToOwned::to_owned)
+            .context("html is missing")?;
+        let hash = item
+            .get("hash")
+            .and_then(|av| av.as_s().ok())
+            .map(ToOwned::to_owned)
+            .context("hash is missing")?;
+        let version = item
+            .get("version")
+            .and_then(|av| av.as_n().ok())
+            .map(|n| n.parse::<i32>().expect("failed to parse version"))
+            .context("version is missing")?;
 
-            let raw_data = ElectricityFailuresRawData {
-                id,
-                date,
-                url,
-                html,
-                hash,
-                version,
-            };
+        let raw_data = ElectricityFailuresRawData {
+            id,
+            date,
+            url,
+            html,
+            hash,
+            version,
+        };
 
-            let data = parse_raw_data_to_data(&raw_data)?;
+        let data = parse_raw_data_to_data(&raw_data)?;
 
-            for d in data {
-                save_electricity_failure_data(client, data_table_name, &d).await?;
-            }
+        for d in data {
+            save_electricity_failure_data(client, data_table_name, &d).await?;
         }
     }
 
@@ -353,11 +349,7 @@ async fn find_electricity_failure_raw_data_by_id(
         .send()
         .await?;
 
-    let mut item = None;
-
-    if let Some(items) = results.items() {
-        item = items.get(0);
-    }
+    let item = results.items().first();
 
     if let Some(attributes) = item {
         let id = attributes
@@ -514,25 +506,18 @@ pub async fn find_ongoing_failures(client: &Client, data_table_name: &str) -> Re
         .send()
         .await?;
 
-    if let Some(items) = results.items() {
-        let mut data: Vec<String> = vec![];
+    let mut data: Vec<String> = vec![];
+    for items in results.items() {
+        let street = items
+            .get("street")
+            .and_then(|av| av.as_s().ok())
+            .map(ToOwned::to_owned)
+            .context("street is missing")?;
 
-        for item in items {
-            let street = item
-                .get("street")
-                .and_then(|av| av.as_s().ok())
-                .map(ToOwned::to_owned)
-                .context("street is missing")?;
-
-            data.push(street);
-        }
-
-        return Ok(data);
+        data.push(street);
     }
 
-    println!("{:?}", results);
-
-    Ok(vec![])
+    Ok(data)
 }
 
 #[cfg(test)]
