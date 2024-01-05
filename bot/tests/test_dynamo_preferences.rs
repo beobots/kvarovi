@@ -1,4 +1,4 @@
-#![cfg(feature = "dyndb_int")]
+#![cfg(feature = "dynamodb")]
 use aws_config::ConfigLoader;
 use aws_sdk_dynamodb::types::{
     AttributeDefinition, KeySchemaElement, KeyType, ProvisionedThroughput, ScalarAttributeType,

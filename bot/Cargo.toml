@@ -12,8 +12,8 @@ harness = false
 required-features = []
 
 [features]
-default = []
-dyndb_int = []
+default = [ "dynamodb" ]
+dynamodb = []
 
 [dependencies]
 tokio = { workspace = true }
