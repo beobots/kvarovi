@@ -1,10 +1,7 @@
 use super::models::{NewSubscription, Subscription};
 use super::Repository;
 use anyhow::{anyhow, bail, Result};
-use async_trait::async_trait;
-use aws_sdk_dynamodb::types::{
-    AttributeValue, ComparisonOperator, Condition, KeysAndAttributes, TransactWriteItem, Update,
-};
+use aws_sdk_dynamodb::types::{AttributeValue, KeysAndAttributes, TransactWriteItem, Update};
 use aws_sdk_dynamodb::Client;
 use std::collections::HashMap;
 
@@ -14,7 +11,6 @@ static CHAT_ID_FIELD: &str = "chat_id";
 static ADDRESSES_FIELD: &str = "addresses";
 static CHAT_IDS_FIELD: &str = "chat_ids";
 
-#[async_trait]
 impl Repository for Client {
     async fn append(&self, value: NewSubscription) -> Result<()> {
         let update_rev = Update::builder()
@@ -132,7 +128,7 @@ impl Repository for Client {
         Ok(result)
     }
 
-    async fn delete_by_ids(&self, ids: Vec<i64>) -> anyhow::Result<()> {
+    async fn delete_by_ids(&self, ids: Vec<i64>) -> Result<()> {
         todo!()
     }
 }

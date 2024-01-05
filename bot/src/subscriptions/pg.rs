@@ -1,11 +1,9 @@
 use super::models::{NewSubscription, Subscription};
 use super::Repository;
 use anyhow::Result;
-use async_trait::async_trait;
 use itertools::Itertools;
 use sqlx::PgPool;
 
-#[async_trait]
 impl Repository for PgPool {
     async fn append(&self, value: NewSubscription) -> Result<()> {
         sqlx::query("INSERT INTO subscriptions (chat_id, address) values($1, $2)")
