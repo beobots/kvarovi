@@ -1,7 +1,6 @@
 use super::models::{ChatPreference, Language};
 use super::repository::Repository;
 use anyhow::Result;
-use async_trait::async_trait;
 use sqlx::postgres::PgPool;
 
 pub struct PgChatPreference<'a> {
@@ -14,7 +13,6 @@ impl<'a> PgChatPreference<'a> {
     }
 }
 
-#[async_trait]
 impl<'a> Repository for PgChatPreference<'a> {
     async fn insert(&self, value: ChatPreference) -> Result<()> {
         sqlx::query("INSERT INTO preference (chat_id, language) VALUES ($1, $2)")
@@ -26,7 +24,7 @@ impl<'a> Repository for PgChatPreference<'a> {
         Ok(())
     }
 
-    async fn find_one_by_chat_id(&self, chat_id: i64) -> Result<Option<ChatPreference>> {
+    async fn find_one(&self, chat_id: i64) -> Result<Option<ChatPreference>> {
         let query = String::from("SELECT * FROM preference WHERE chat_id = $1");
         let subscriptions = sqlx::query_as::<_, ChatPreference>(query.as_str())
             .bind(chat_id)

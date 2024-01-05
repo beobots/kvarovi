@@ -5,6 +5,12 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[[bench]]
+name = "escape_markdown"
+path = "benches/escape_markdown.rs"
+harness = false
+required-features = []
+
 [features]
 default = []
 dyndb_int = []
@@ -22,9 +28,10 @@ electricity = { path = "../electricity" }
 tracing = { workspace = true }
 aws-config = { workspace = true }
 aws-sdk-dynamodb = { workspace = true }
+itertools = { workspace = true }
 
 [dev-dependencies]
 # Comment out by default, because ohterwise audit check will not pass.
 testcontainers = { git = "https://github.com/testcontainers/testcontainers-rs", rev = "0f2c985160e51a200cfc847097c15b8d85ed7df1", default-features = false, features = [] }
-chrono = { version = "0.4", default-features = false, features = ["clock"] }
-
+chrono = { version = "0.4", default-features = false, features = [ "clock" ] }
+criterion = { version = "0.5", default-features = false, features = [ "cargo_bench_support" ] }

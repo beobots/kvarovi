@@ -1,11 +1,8 @@
-use crate::preferences::{self, *};
-use crate::repositories::message_repository::MessageType;
+use crate::messages::{Message, MessageType, Repository as MessagesRepository};
+use crate::preferences::{ChatPreference, Language, PgChatPreference, Repository as PreferencesRepository};
 use crate::utils::{escape_markdown, t};
 use crate::{
-    repositories::{
-        message_repository::{MessageRepository, NewMessage, Repository as _},
-        subscription_repository::{NewSubscription, Repository as _, SubscriptionsRepository},
-    },
+    repositories::subscription_repository::{NewSubscription, Repository as _, SubscriptionsRepository},
     utils::Escape,
 };
 use anyhow::Context as _;
@@ -147,11 +144,9 @@ async fn get_chat_preference<T>(
     chat_id: i64,
 ) -> Result<ChatPreference>
 where
-    T: preferences::Repository,
+    T: PreferencesRepository,
 {
-    let chat_preference = chat_preference_repository
-        .find_one_by_chat_id(chat_id)
-        .await?;
+    let chat_preference = chat_preference_repository.find_one(chat_id).await?;
 
     if let Some(chat_preference) = chat_preference {
         Ok(chat_preference)
@@ -166,9 +161,7 @@ where
             .insert(new_chat_preference)
             .await?;
 
-        let chat_preference = chat_preference_repository
-            .find_one_by_chat_id(chat_id)
-            .await?;
+        let chat_preference = chat_preference_repository.find_one(chat_id).await?;
 
         if let Some(chat_preferences) = chat_preference {
             Ok(chat_preferences)
@@ -181,27 +174,26 @@ where
     }
 }
 
-pub async fn handle_update<T>(
+#[tracing::instrument(level = "info", skip(subscriptions, messages, preferences))]
+pub async fn handle_update<T, M>(
     update: &Update,
-    subscriptions_repository: SubscriptionsRepository<'_>,
-    message_repository: MessageRepository<'_>,
-    chat_preference_repository: &mut T,
+    subscriptions: SubscriptionsRepository<'_>,
+    messages: &mut M,
+    preferences: &mut T,
 ) -> Result<()>
 where
-    T: preferences::Repository,
+    T: PreferencesRepository,
+    M: MessagesRepository,
 {
+    debug!(message = format!("{update:?}"), "received telegram update");
+
     let bot = Bot::from_env().parse_mode(ParseMode::MarkdownV2);
-
-    subscriptions_repository.create_table().await?;
-    message_repository.create_table().await?;
-
-    debug!("Got update: {update:?}");
 
     match &update.kind {
         UpdateKind::Message(message) => {
             let chat_id = message.chat.id;
             let ChatId(chat_id_i64) = chat_id;
-            let chat_preference = get_chat_preference(chat_preference_repository, update, chat_id_i64).await?;
+            let chat_preference = get_chat_preference(preferences, update, chat_id_i64).await?;
 
             if let Some(text) = message.text() {
                 let mut message_type = MessageType::Text;
@@ -219,9 +211,7 @@ where
                     message_type = MessageType::Command;
                     bot.send_message(chat_id, "Введите ваш адрес").await?;
                 } else if text == get_unsubscribe_action_text(&chat_preference) {
-                    let subscriptions = subscriptions_repository
-                        .find_all_by_chat_id(chat_id_i64)
-                        .await?;
+                    let subscriptions = subscriptions.find_all_by_chat_id(chat_id_i64).await?;
 
                     if !subscriptions.is_empty() {
                         let mut addresses = String::new();
@@ -243,9 +233,7 @@ where
                 } else if text == get_my_addresses_action_text(&chat_preference) {
                     message_type = MessageType::Command;
 
-                    let subscriptions = subscriptions_repository
-                        .find_all_by_chat_id(chat_id_i64)
-                        .await?;
+                    let subscriptions = subscriptions.find_all_by_chat_id(chat_id_i64).await?;
 
                     if !subscriptions.is_empty() {
                         let mut addresses = String::new();
@@ -266,8 +254,8 @@ where
                         .reply_markup(get_settings_actions(&chat_preference))
                         .await?;
                 } else {
-                    let last_command = message_repository
-                        .find_one_by_chat_id(chat_id_i64, "command".to_owned())
+                    let last_command = messages
+                        .find_last(chat_id_i64, MessageType::Command)
                         .await?;
 
                     if let Some(last_command) = last_command {
@@ -277,7 +265,7 @@ where
                             bot.send_message(chat_id, "Вот информация по вашему адресу")
                                 .await?;
                         } else if last_command_text == get_subscribe_action_text(&chat_preference) {
-                            subscriptions_repository
+                            subscriptions
                                 .insert(NewSubscription {
                                     chat_id: chat_id_i64,
                                     address: text.translit().to_owned(),
@@ -287,9 +275,7 @@ where
                             bot.send_message(chat_id, t("subscribed", chat_preference.language))
                                 .await?;
                         } else if last_command_text == get_unsubscribe_action_text(&chat_preference) {
-                            let subscriptions = subscriptions_repository
-                                .find_all_by_chat_id(chat_id_i64)
-                                .await?;
+                            let subs = subscriptions.find_all_by_chat_id(chat_id_i64).await?;
 
                             let ids = text
                                 .to_owned()
@@ -302,17 +288,15 @@ where
 
                             let ids_to_remove = ids
                                 .iter()
-                                .map(|index| subscriptions[index.to_owned()].id)
+                                .map(|index| subs[index.to_owned()].id)
                                 .map(i64::from)
                                 .collect::<Vec<i64>>();
 
-                            subscriptions_repository
-                                .delete_by_ids(ids_to_remove)
-                                .await?;
+                            subscriptions.delete_by_ids(ids_to_remove).await?;
 
                             let removed_addresses = ids
                                 .iter()
-                                .map(|index| subscriptions[index.to_owned()].address.to_owned())
+                                .map(|index| subs[index.to_owned()].address.to_owned())
                                 .collect::<Vec<String>>()
                                 .join(",");
 
@@ -332,11 +316,11 @@ where
 
                 debug!("Got message: {text:?}");
 
-                message_repository
-                    .insert(NewMessage {
+                messages
+                    .append(Message {
                         chat_id: chat_id_i64,
                         text: text.to_owned(),
-                        message_type: message_type.as_ref().to_owned(),
+                        message_type,
                     })
                     .await?;
             }
@@ -345,8 +329,8 @@ where
                 let latitude = location.latitude;
                 let longitude = location.longitude;
 
-                let last_command = message_repository
-                    .find_one_by_chat_id(chat_id_i64, "command".to_owned())
+                let last_command = messages
+                    .find_last(chat_id_i64, MessageType::Command)
                     .await?;
 
                 if let Some(last_command) = last_command {
@@ -370,7 +354,7 @@ where
             if let Some(message) = &query.message {
                 let chat_id = message.chat.id;
                 let ChatId(chat_id_i64) = chat_id;
-                let mut chat_preference = get_chat_preference(chat_preference_repository, update, chat_id_i64).await?;
+                let mut chat_preference = get_chat_preference(preferences, update, chat_id_i64).await?;
 
                 if let Some(data) = &query.data {
                     if data == "change_language" {
@@ -389,10 +373,10 @@ where
                             return Ok(());
                         }
 
-                        chat_preference_repository
+                        preferences
                             .update_language(chat_id_i64, new_language)
                             .await?;
-                        chat_preference = get_chat_preference(chat_preference_repository, update, chat_id_i64).await?;
+                        chat_preference = get_chat_preference(preferences, update, chat_id_i64).await?;
 
                         bot.edit_message_text(
                             chat_id,
@@ -447,9 +431,7 @@ pub async fn notify_addresses(addresses: Vec<String>) -> Result<()> {
     for subscription in subscriptions {
         let chat_id = subscription.chat_id;
         let chat_preference_repository = PgChatPreference::new(&sqlx_database_client);
-        let chat_preference = chat_preference_repository
-            .find_one_by_chat_id(chat_id)
-            .await?;
+        let chat_preference = chat_preference_repository.find_one(chat_id).await?;
 
         if let Some(chat_preference) = chat_preference {
             send_message(

@@ -1,8 +1,10 @@
 pub mod message_handler;
 pub mod repositories;
 pub mod repository;
+pub mod subscriptions;
 pub mod utils;
 
+pub mod messages;
 pub mod preferences;
 
 #[cfg(test)]
