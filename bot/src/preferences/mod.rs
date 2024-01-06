@@ -1,9 +1,10 @@
+#[cfg(feature = "dynamodb")]
 mod dynamo;
 mod models;
 mod pg;
 mod repository;
 
-#[allow(unused)]
+#[cfg(feature = "dynamodb")]
 pub use dynamo::*;
 pub use models::*;
 pub use pg::*;

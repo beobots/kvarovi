@@ -6,13 +6,12 @@ on:
   pull_request:
 name: test
 jobs:
-  required:
+  unittests:
     runs-on: ubuntu-latest
     name: tests / stable
     steps:
       - uses: actions/checkout@v4
-      - name: Install Rust Toolchain Components
-        uses: actions-rs/toolchain@v1
+      - uses: actions-rs/toolchain@v1
         with:
           override: true
           toolchain: stable
@@ -28,17 +27,17 @@ jobs:
     name: stable / coverage
     steps:
       - uses: actions/checkout@v4
-      - name: Install Rust Toolchain Components
-        uses: actions-rs/toolchain@v1
+      - uses: actions-rs/toolchain@v1
         with:
           override: true
           toolchain: stable
       - name: Run cargo-tarpaulin
         uses: actions-rs/tarpaulin@v0.1
         with:
-          version: '0.20.1'
+          version: '0.27.2'
           args: '--workspace --line'
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v3
         with:
+          verbose: true
           fail_ci_if_error: true
